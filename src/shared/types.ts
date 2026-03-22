@@ -3,6 +3,7 @@ export interface Settings {
   claudeApiKey: string;
   dailyArticleCount: 1 | 2;
   installedDate: string;
+  paused: boolean;
 }
 
 export interface DailyRecord {
