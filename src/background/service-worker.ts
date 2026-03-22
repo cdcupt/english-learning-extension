@@ -1,10 +1,5 @@
-import type { DailyRecord, StreakData } from "@/shared/types";
+import type { DailyRecord, Settings, StreakData } from "@/shared/types";
 import { getTodayKey, getYesterday } from "@/shared/utils/date";
-
-// Open side panel on toolbar icon click
-chrome.sidePanel
-  .setPanelBehavior({ openPanelOnClick: true } as chrome.sidePanel.PanelBehavior)
-  .catch(console.error);
 
 // Set up daily reset alarm
 chrome.runtime.onInstalled.addListener(() => {
@@ -17,6 +12,7 @@ chrome.runtime.onInstalled.addListener(() => {
 
 chrome.alarms.onAlarm.addListener(async (alarm) => {
   if (alarm.name === "dailyReset") {
+    if (await isPaused()) return;
     await finalizePreviousDay();
     await updateBadge();
   }
@@ -27,7 +23,19 @@ chrome.storage.local.onChanged.addListener(() => {
   updateBadge();
 });
 
+async function isPaused(): Promise<boolean> {
+  const result = await chrome.storage.local.get("settings");
+  const settings = result["settings"] as Settings | undefined;
+  return settings?.paused ?? false;
+}
+
 async function updateBadge() {
+  if (await isPaused()) {
+    chrome.action.setBadgeText({ text: "||" });
+    chrome.action.setBadgeBackgroundColor({ color: "#9CA3AF" });
+    return;
+  }
+
   const today = getTodayKey();
   const result = await chrome.storage.local.get(`day:${today}`);
   const record = result[`day:${today}`] as DailyRecord | undefined;
