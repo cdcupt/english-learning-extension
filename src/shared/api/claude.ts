@@ -1,35 +1,35 @@
-interface ClaudeResponse {
-  content: { type: string; text: string }[];
+interface KimiResponse {
+  choices: { message: { content: string } }[];
 }
 
-async function callClaude(
+async function callKimi(
   apiKey: string,
   systemPrompt: string,
   userMessage: string
 ): Promise<string> {
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
+  const res = await fetch("https://api.moonshot.ai/v1/chat/completions", {
     method: "POST",
     headers: {
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01",
+      Authorization: `Bearer ${apiKey}`,
       "content-type": "application/json",
-      "anthropic-dangerous-direct-browser-access": "true",
     },
     body: JSON.stringify({
-      model: "claude-sonnet-4-20250514",
+      model: "moonshot-v1-8k",
       max_tokens: 1024,
-      system: systemPrompt,
-      messages: [{ role: "user", content: userMessage }],
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userMessage },
+      ],
     }),
   });
 
   if (!res.ok) {
     const err = await res.text();
-    throw new Error(`Claude API error: ${res.status} - ${err}`);
+    throw new Error(`Kimi API error: ${res.status} - ${err}`);
   }
 
-  const data: ClaudeResponse = await res.json();
-  return data.content[0]?.text ?? "";
+  const data: KimiResponse = await res.json();
+  return data.choices[0]?.message?.content ?? "";
 }
 
 export async function explainWord(
@@ -44,7 +44,7 @@ Give clear, simple explanations. Include:
 3. 2 example sentences using the word/phrase
 Keep it concise — under 150 words.`;
 
-  return callClaude(
+  return callKimi(
     apiKey,
     system,
     `I'm reading an article and found this word/phrase I don't understand: "${word}"\n\nContext: "${context}"`
@@ -74,7 +74,7 @@ You MUST respond with valid JSON only, no markdown fences, in this exact format:
   "overallComment": "..."
 }`;
 
-  const text = await callClaude(
+  const text = await callKimi(
     apiKey,
     system,
     `Topic: "${topic}"\n\nEssay:\n${content}`
