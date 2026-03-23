@@ -30,23 +30,26 @@ export function Reading({ record, onUpdate }: Props) {
     try {
       const today = getTodayKey();
       const cached = await getDailyArticles(today);
-      if (cached) {
+      if (cached && cached.articles.length > 0) {
         setArticles(cached.articles);
         setLoading(false);
         return;
       }
 
       const settings = await getSettings();
+      console.log("[Reading] Settings loaded:", { hasNytKey: !!settings?.nytApiKey, articleCount: settings?.dailyArticleCount });
       if (!settings?.nytApiKey) {
         setError("Please set your NYT API key in Settings first.");
         setLoading(false);
         return;
       }
 
+      console.log("[Reading] Fetching articles...");
       const fetched = await fetchArticles(
         settings.nytApiKey,
         settings.dailyArticleCount
       );
+      console.log("[Reading] Fetched articles:", fetched.length);
       await saveDailyArticles({
         date: today,
         articles: fetched,
@@ -110,8 +113,28 @@ export function Reading({ record, onUpdate }: Props) {
     return (
       <div className="max-w-2xl mx-auto py-10">
         <div className="bg-red-50 border border-red-200 rounded-xl p-6 text-red-700">
-          {error}
+          <p>{error}</p>
+          <button
+            onClick={loadArticles}
+            className="mt-4 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm"
+          >
+            Retry
+          </button>
         </div>
+      </div>
+    );
+  }
+
+  if (articles.length === 0) {
+    return (
+      <div className="max-w-2xl mx-auto py-10 text-center">
+        <p className="text-gray-500 mb-4">No articles loaded. Check your NYT API key in Settings.</p>
+        <button
+          onClick={loadArticles}
+          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
+        >
+          Fetch Articles
+        </button>
       </div>
     );
   }

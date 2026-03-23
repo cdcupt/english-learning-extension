@@ -8,6 +8,8 @@ export function Settings() {
   const [claudeApiKey, setClaudeApiKey] = useState("");
   const [articleCount, setArticleCount] = useState<1 | 2>(2);
   const [saved, setSaved] = useState(false);
+  const [showNytKey, setShowNytKey] = useState(false);
+  const [showKimiKey, setShowKimiKey] = useState(false);
 
   useEffect(() => {
     getSettings().then((s) => {
@@ -53,13 +55,22 @@ export function Settings() {
           <label className="block text-sm font-medium text-gray-700 mb-1">
             NYT API Key
           </label>
-          <input
-            type="password"
-            value={nytApiKey}
-            onChange={(e) => setNytApiKey(e.target.value)}
-            placeholder="Enter your NYT API key"
-            className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
+          <div className="relative">
+            <input
+              type={showNytKey ? "text" : "password"}
+              value={nytApiKey}
+              onChange={(e) => setNytApiKey(e.target.value)}
+              placeholder="Enter your NYT API key"
+              className="w-full px-4 py-2 pr-16 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <button
+              type="button"
+              onClick={() => setShowNytKey(!showNytKey)}
+              className="absolute right-2 top-1/2 -translate-y-1/2 px-2 py-1 text-xs text-gray-500 hover:text-gray-700"
+            >
+              {showNytKey ? "Hide" : "Show"}
+            </button>
+          </div>
           <p className="text-xs text-gray-400 mt-1">
             Get one at developer.nytimes.com
           </p>
@@ -67,17 +78,26 @@ export function Settings() {
 
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            Claude API Key
+            Kimi API Key
           </label>
-          <input
-            type="password"
-            value={claudeApiKey}
-            onChange={(e) => setClaudeApiKey(e.target.value)}
-            placeholder="Enter your Anthropic API key"
-            className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
+          <div className="relative">
+            <input
+              type={showKimiKey ? "text" : "password"}
+              value={claudeApiKey}
+              onChange={(e) => setClaudeApiKey(e.target.value)}
+              placeholder="Enter your Kimi API key"
+              className="w-full px-4 py-2 pr-16 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <button
+              type="button"
+              onClick={() => setShowKimiKey(!showKimiKey)}
+              className="absolute right-2 top-1/2 -translate-y-1/2 px-2 py-1 text-xs text-gray-500 hover:text-gray-700"
+            >
+              {showKimiKey ? "Hide" : "Show"}
+            </button>
+          </div>
           <p className="text-xs text-gray-400 mt-1">
-            Get one at console.anthropic.com
+            Get one at platform.moonshot.cn
           </p>
         </div>
 

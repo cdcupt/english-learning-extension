@@ -32,7 +32,7 @@ export function Writing({ record, onUpdate }: Props) {
     try {
       const settings = await getSettings();
       if (!settings?.claudeApiKey) {
-        setError("Please set your Claude API key in Settings.");
+        setError("Please set your Kimi API key in Settings.");
         setSubmitting(false);
         return;
       }

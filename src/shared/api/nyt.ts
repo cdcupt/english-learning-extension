@@ -1,36 +1,29 @@
 import type { Article } from "../types";
 
-const SECTIONS = [
-  "World",
-  "U.S.",
-  "Science",
-  "Technology",
-  "Health",
-  "Business",
-  "Arts",
-  "Travel",
+const QUERIES = [
+  "politics",
+  "politics",
+  "technology",
+  "technology",
+  "world news",
+  "science",
+  "health",
+  "business",
 ];
 
 export async function fetchArticles(
   apiKey: string,
   count: number
 ): Promise<Article[]> {
-  const section = SECTIONS[Math.floor(Math.random() * SECTIONS.length)];
-  const url = new URL(
-    "https://api.nytimes.com/svc/search/v2/articlesearch.json"
-  );
-  url.searchParams.set("api-key", apiKey);
-  url.searchParams.set("fq", `section_name:("${section}")`);
-  url.searchParams.set("sort", "newest");
-  url.searchParams.set("fl", "web_url,headline,abstract,lead_paragraph,snippet,section_name,pub_date,uri");
+  const query = QUERIES[Math.floor(Math.random() * QUERIES.length)];
 
-  const res = await fetch(url.toString());
-  if (!res.ok) {
-    throw new Error(`NYT API error: ${res.status} ${res.statusText}`);
+  // Try with a topic query first
+  let docs = await searchArticles(apiKey, query);
+
+  // Fallback: fetch without query filter
+  if (docs.length === 0) {
+    docs = await searchArticles(apiKey, null);
   }
-
-  const data = await res.json();
-  const docs = data.response?.docs ?? [];
 
   return docs.slice(0, count).map(
     (doc: {
@@ -48,9 +41,37 @@ export async function fetchArticles(
       abstract: doc.abstract ?? "",
       url: doc.web_url,
       body: doc.lead_paragraph || doc.snippet || "",
-      section: doc.section_name ?? section,
+      section: doc.section_name ?? "General",
       publishedDate: doc.pub_date,
       readAt: null,
     })
   );
+}
+
+async function searchArticles(
+  apiKey: string,
+  query: string | null
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+): Promise<any[]> {
+  const url = new URL(
+    "https://api.nytimes.com/svc/search/v2/articlesearch.json"
+  );
+  url.searchParams.set("api-key", apiKey);
+  url.searchParams.set("sort", "newest");
+  url.searchParams.set(
+    "fl",
+    "web_url,headline,abstract,lead_paragraph,snippet,section_name,pub_date,uri"
+  );
+  if (query) {
+    url.searchParams.set("q", query);
+  }
+
+  const res = await fetch(url.toString());
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`NYT API error: ${res.status} — ${body}`);
+  }
+
+  const data = await res.json();
+  return data.response?.docs ?? [];
 }
