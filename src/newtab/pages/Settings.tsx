@@ -7,6 +7,7 @@ export function Settings() {
   const [nytApiKey, setNytApiKey] = useState("");
   const [claudeApiKey, setClaudeApiKey] = useState("");
   const [articleCount, setArticleCount] = useState<1 | 2>(2);
+  const [paused, setPaused] = useState(false);
   const [saved, setSaved] = useState(false);
   const [showNytKey, setShowNytKey] = useState(false);
   const [showKimiKey, setShowKimiKey] = useState(false);
@@ -17,6 +18,7 @@ export function Settings() {
         setNytApiKey(s.nytApiKey);
         setClaudeApiKey(s.claudeApiKey);
         setArticleCount(s.dailyArticleCount);
+        setPaused(s.paused ?? false);
       }
     });
   }, []);
@@ -28,6 +30,7 @@ export function Settings() {
       claudeApiKey,
       dailyArticleCount: articleCount,
       installedDate: existing?.installedDate ?? getTodayKey(),
+      paused,
     });
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
@@ -51,6 +54,29 @@ export function Settings() {
       <h1 className="text-2xl font-bold text-gray-900 mb-6">Settings</h1>
 
       <div className="space-y-6">
+        <div className="flex items-center justify-between bg-white rounded-xl border border-gray-200 p-4">
+          <div>
+            <h2 className="font-semibold text-gray-900">Extension Active</h2>
+            <p className="text-sm text-gray-500 mt-0.5">
+              {paused
+                ? "Paused — no API calls or reminders"
+                : "Running — tracking your daily tasks"}
+            </p>
+          </div>
+          <button
+            onClick={() => setPaused(!paused)}
+            className={`relative w-12 h-7 rounded-full transition-colors ${
+              paused ? "bg-gray-300" : "bg-green-500"
+            }`}
+          >
+            <span
+              className={`absolute top-0.5 left-0.5 w-6 h-6 bg-white rounded-full shadow transition-transform ${
+                paused ? "translate-x-0" : "translate-x-5"
+              }`}
+            />
+          </button>
+        </div>
+
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
             NYT API Key
