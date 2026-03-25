@@ -34,6 +34,12 @@ const TASK_CONFIG: Record<
     page: "speaking",
     color: "orange",
   },
+  listening: {
+    label: "Listening",
+    icon: "🎧",
+    page: "listening",
+    color: "teal",
+  },
 };
 
 export function TaskCard({ type, completed, onNavigate }: Props) {

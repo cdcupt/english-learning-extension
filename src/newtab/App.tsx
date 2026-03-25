@@ -8,6 +8,8 @@ import { Reading } from "./pages/Reading";
 import { Writing } from "./pages/Writing";
 import { Vocabulary } from "./pages/Vocabulary";
 import { Speaking } from "./pages/Speaking";
+import { Listening } from "./pages/Listening";
+import { PracticesHistory } from "./pages/PracticesHistory";
 import { WeeklySummary } from "./pages/WeeklySummary";
 import { Settings } from "./pages/Settings";
 
@@ -18,7 +20,7 @@ export function App() {
 
   useEffect(() => {
     getSettings().then((s) => {
-      if (!s?.nytApiKey || !s?.claudeApiKey) {
+      if (!s?.nytApiKey || !(s?.aiProvider?.apiKey || s?.claudeApiKey)) {
         setNeedsSetup(true);
       }
     });
@@ -50,6 +52,10 @@ export function App() {
         return <Vocabulary record={record!} onUpdate={update} />;
       case "speaking":
         return <Speaking record={record!} onUpdate={update} />;
+      case "listening":
+        return <Listening record={record!} onUpdate={update} />;
+      case "history":
+        return <PracticesHistory />;
       case "summary":
         return <WeeklySummary />;
       case "settings":

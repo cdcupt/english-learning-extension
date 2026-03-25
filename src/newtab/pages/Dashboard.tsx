@@ -38,7 +38,7 @@ export function Dashboard({ record, onNavigate }: Props) {
             Today's Tasks
           </h1>
           <p className="text-gray-500 mt-1">
-            {completed}/4 completed
+            {completed}/5 completed
           </p>
         </div>
         <div className="text-right">
@@ -68,6 +68,11 @@ export function Dashboard({ record, onNavigate }: Props) {
         <TaskCard
           type="speaking"
           completed={record.speaking.completed}
+          onNavigate={onNavigate}
+        />
+        <TaskCard
+          type="listening"
+          completed={record.listening?.completed ?? false}
           onNavigate={onNavigate}
         />
       </div>

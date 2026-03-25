@@ -31,14 +31,15 @@ export function Writing({ record, onUpdate }: Props) {
 
     try {
       const settings = await getSettings();
-      if (!settings?.claudeApiKey) {
-        setError("Please set your Kimi API key in Settings.");
+      const aiKey = settings?.aiProvider?.apiKey || settings?.claudeApiKey;
+      if (!aiKey) {
+        setError("Please set your AI API key in Settings.");
         setSubmitting(false);
         return;
       }
 
       const result = await reviewWriting(
-        settings.claudeApiKey,
+        aiKey,
         topic,
         content
       );

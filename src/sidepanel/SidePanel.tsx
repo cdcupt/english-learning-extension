@@ -80,6 +80,7 @@ export function SidePanel() {
     { key: "writing" as const, label: "Writing", done: record.writing.completed },
     { key: "vocabulary" as const, label: "Vocabulary", done: record.vocabulary.completed },
     { key: "speaking" as const, label: "Speaking", done: record.speaking.completed },
+    { key: "listening" as const, label: "Listening", done: record.listening?.completed ?? false },
   ];
 
   return (

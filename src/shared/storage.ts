@@ -46,6 +46,7 @@ export function createEmptyDailyRecord(date: string): DailyRecord {
     writing: { completed: false, writingId: null },
     vocabulary: { completed: false, checkedInAt: null },
     speaking: { completed: false, checkedInAt: null },
+    listening: { completed: false, practicesCompleted: 0 },
   };
 }
 
@@ -56,6 +57,13 @@ export async function getOrCreateTodayRecord(): Promise<DailyRecord> {
   const record = createEmptyDailyRecord(today);
   await saveDailyRecord(record);
   return record;
+}
+
+// Daily Records for a date range
+export async function getDailyRecordsRange(
+  dates: string[]
+): Promise<(DailyRecord | undefined)[]> {
+  return Promise.all(dates.map((d) => getDailyRecord(d)));
 }
 
 // Articles
