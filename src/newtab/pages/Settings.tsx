@@ -62,6 +62,7 @@ export function Settings() {
       dailyArticleCount: articleCount,
       dailyListeningCount: listeningCount,
       installedDate: existing?.installedDate ?? getTodayKey(),
+      paused,
     });
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);

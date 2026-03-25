@@ -17,6 +17,7 @@ export interface Settings {
   dailyArticleCount: 1 | 2 | 3 | 4 | 5;
   dailyListeningCount: 1 | 2 | 3 | 4 | 5;
   installedDate: string;
+  paused: boolean;
 }
 
 export interface DailyRecord {
