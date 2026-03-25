@@ -1,7 +1,21 @@
+export type AIProvider = "kimi" | "openai" | "claude" | "deepseek" | "gemini";
+
+export interface AIProviderConfig {
+  provider: AIProvider;
+  apiKey: string;
+  model: string;
+}
+
+export type TTSVoice = "alloy" | "echo" | "fable" | "onyx" | "nova" | "shimmer";
+
 export interface Settings {
   nytApiKey: string;
-  claudeApiKey: string;
-  dailyArticleCount: 1 | 2;
+  claudeApiKey: string; // kept for backward compatibility
+  aiProvider: AIProviderConfig;
+  ttsApiKey: string; // OpenAI API key for text-to-speech
+  ttsVoice: TTSVoice;
+  dailyArticleCount: 1 | 2 | 3 | 4 | 5;
+  dailyListeningCount: 1 | 2 | 3 | 4 | 5;
   installedDate: string;
   paused: boolean;
 }
@@ -24,6 +38,10 @@ export interface DailyRecord {
   speaking: {
     completed: boolean;
     checkedInAt: string | null;
+  };
+  listening: {
+    completed: boolean;
+    practicesCompleted: number;
   };
 }
 
@@ -93,7 +111,22 @@ export interface StreakData {
   lastPerfectDate: string | null;
 }
 
-export type TaskType = "reading" | "writing" | "vocabulary" | "speaking";
+export interface QuizQuestion {
+  question: string;
+  options: string[];
+  correctIndex: number;
+  explanation: string;
+}
+
+export interface ListeningPractice {
+  id: string;
+  title: string;
+  scenario: string;
+  passage: string;
+  questions: QuizQuestion[];
+}
+
+export type TaskType = "reading" | "writing" | "vocabulary" | "speaking" | "listening";
 
 export type Page =
   | "dashboard"
@@ -102,5 +135,7 @@ export type Page =
   | "writing"
   | "vocabulary"
   | "speaking"
+  | "listening"
+  | "history"
   | "summary"
   | "settings";

@@ -1,7 +1,7 @@
 {
   "name": "english-learning-extension",
   "version": "1.0.0",
-  "description": "Daily English learning tasks: reading, writing, vocabulary, speaking",
+  "description": "Daily English learning tasks: reading, writing, vocabulary, speaking, listening",
   "type": "module",
   "scripts": {
     "dev": "vite",

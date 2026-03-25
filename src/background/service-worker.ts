@@ -1,4 +1,4 @@
-import type { DailyRecord, StreakData, Settings } from "@/shared/types";
+import type { DailyRecord, StreakData, Settings, AIProvider } from "@/shared/types";
 import { getTodayKey, getYesterday } from "@/shared/utils/date";
 
 // Open dashboard in new tab on icon click
@@ -53,7 +53,7 @@ async function updateBadge() {
   const record = result[`day:${today}`] as DailyRecord | undefined;
 
   if (!record) {
-    chrome.action.setBadgeText({ text: "4" });
+    chrome.action.setBadgeText({ text: "5" });
     chrome.action.setBadgeBackgroundColor({ color: "#EF4444" });
     return;
   }
@@ -63,6 +63,7 @@ async function updateBadge() {
   if (!record.writing.completed) remaining++;
   if (!record.vocabulary.completed) remaining++;
   if (!record.speaking.completed) remaining++;
+  if (!(record.listening?.completed)) remaining++;
 
   if (remaining === 0) {
     chrome.action.setBadgeText({ text: "✓" });
@@ -330,48 +331,86 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   // Get API key
   const settingsResult = await chrome.storage.local.get("settings");
   const settings = settingsResult.settings as Settings | undefined;
-  if (!settings?.claudeApiKey) {
-    showFloatingPopup(tabId, selectedText, "Please set your Kimi API key in Settings.", true);
+  const aiConfig = settings?.aiProvider ?? (settings?.claudeApiKey
+    ? { provider: "kimi" as AIProvider, apiKey: settings.claudeApiKey, model: "moonshot-v1-8k" }
+    : null);
+
+  if (!aiConfig?.apiKey) {
+    showFloatingPopup(tabId, selectedText, "Please set your AI API key in Settings.", true);
     return;
   }
 
-  // Call Kimi API
-  try {
-    const res = await fetch("https://api.moonshot.ai/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${settings.claudeApiKey}`,
-        "content-type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "moonshot-v1-8k",
-        max_tokens: 1024,
-        messages: [
-          {
-            role: "system",
-            content: `You are an English tutor helping a Chinese-speaking learner.
+  const systemPrompt = `You are an English tutor helping a Chinese-speaking learner.
 When explaining a word or phrase, include:
 1. Chinese translation (中文翻译)
 2. English definition
 3. Meaning in context
 4. 2 example sentences
-Keep it concise — under 200 words.`,
-          },
-          {
-            role: "user",
-            content: `Explain this word/phrase: "${selectedText}"\n\nContext from page: "${info.selectionText}"`,
-          },
-        ],
-      }),
-    });
+Keep it concise — under 200 words.`;
+  const userMessage = `Explain this word/phrase: "${selectedText}"\n\nContext from page: "${info.selectionText}"`;
 
-    if (!res.ok) {
-      const err = await res.text();
-      throw new Error(`API error: ${res.status} - ${err}`);
+  try {
+    let explanation: string;
+
+    if (aiConfig.provider === "claude") {
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-api-key": aiConfig.apiKey,
+          "anthropic-version": "2023-06-01",
+        },
+        body: JSON.stringify({
+          model: aiConfig.model,
+          max_tokens: 1024,
+          system: systemPrompt,
+          messages: [{ role: "user", content: userMessage }],
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.text();
+        throw new Error(`API error: ${res.status} - ${err}`);
+      }
+      const data = await res.json();
+      explanation = data.content?.[0]?.text ?? "No explanation available.";
+    } else {
+      const endpoints: Record<string, string> = {
+        kimi: "https://api.moonshot.ai/v1/chat/completions",
+        openai: "https://api.openai.com/v1/chat/completions",
+        deepseek: "https://api.deepseek.com/chat/completions",
+        gemini: "https://generativelanguage.googleapis.com/v1beta/chat/completions",
+      };
+      const endpoint = endpoints[aiConfig.provider] ?? endpoints.kimi;
+
+      const url = aiConfig.provider === "gemini"
+        ? `${endpoint}?key=${aiConfig.apiKey}`
+        : endpoint;
+
+      const headers: Record<string, string> = { "content-type": "application/json" };
+      if (aiConfig.provider !== "gemini") {
+        headers["Authorization"] = `Bearer ${aiConfig.apiKey}`;
+      }
+
+      const res = await fetch(url, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          model: aiConfig.model,
+          max_tokens: 1024,
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userMessage },
+          ],
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.text();
+        throw new Error(`API error: ${res.status} - ${err}`);
+      }
+      const data = await res.json();
+      explanation = data.choices?.[0]?.message?.content ?? "No explanation available.";
     }
 
-    const data = await res.json();
-    const explanation = data.choices?.[0]?.message?.content ?? "No explanation available.";
     showFloatingPopup(tabId, selectedText, explanation);
   } catch (e) {
     showFloatingPopup(tabId, selectedText, e instanceof Error ? e.message : "Failed to get explanation", true);

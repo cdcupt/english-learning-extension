@@ -76,18 +76,33 @@ export function Reading({ record, onUpdate }: Props) {
     });
 
     const readIds = [...record.reading.articlesRead, articleId];
-    const allRead = updated.every((a) => a.readAt);
 
     await onUpdate((r) => ({
       ...r,
       reading: {
         ...r.reading,
         articlesRead: readIds,
-        completed: allRead,
       },
     }));
+  }
 
-    setSelectedArticle(null);
+  const [quizDone, setQuizDone] = useState<Set<string>>(new Set());
+
+  async function handleQuizComplete(articleId: string) {
+    const next = new Set(quizDone);
+    next.add(articleId);
+    setQuizDone(next);
+
+    const allDone = articles.every((a) => next.has(a.id));
+    if (allDone) {
+      await onUpdate((r) => ({
+        ...r,
+        reading: {
+          ...r.reading,
+          completed: true,
+        },
+      }));
+    }
   }
 
   if (selectedArticle) {
@@ -96,7 +111,9 @@ export function Reading({ record, onUpdate }: Props) {
         article={selectedArticle}
         onBack={() => setSelectedArticle(null)}
         onMarkRead={() => markRead(selectedArticle.id)}
+        onQuizComplete={() => handleQuizComplete(selectedArticle.id)}
         isRead={!!selectedArticle.readAt}
+        quizCompleted={quizDone.has(selectedArticle.id)}
       />
     );
   }
@@ -144,7 +161,7 @@ export function Reading({ record, onUpdate }: Props) {
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Today's Reading</h1>
         <span className="text-sm text-gray-500">
-          {articles.filter((a) => a.readAt).length}/{articles.length} read
+          {quizDone.size}/{articles.length} completed
         </span>
       </div>
 
@@ -154,9 +171,11 @@ export function Reading({ record, onUpdate }: Props) {
             key={article.id}
             onClick={() => setSelectedArticle(article)}
             className={`w-full text-left p-6 rounded-xl border-2 transition-all ${
-              article.readAt
+              quizDone.has(article.id)
                 ? "bg-green-50 border-green-200"
-                : "bg-white border-gray-200 hover:border-blue-300 hover:shadow-sm"
+                : article.readAt
+                  ? "bg-yellow-50 border-yellow-200"
+                  : "bg-white border-gray-200 hover:border-blue-300 hover:shadow-sm"
             }`}
           >
             <div className="flex items-start justify-between gap-4">
@@ -171,9 +190,13 @@ export function Reading({ record, onUpdate }: Props) {
                   {article.abstract}
                 </p>
               </div>
-              {article.readAt && (
-                <span className="text-green-600 text-xl">✓</span>
-              )}
+              <div className="flex flex-col items-center gap-1">
+                {quizDone.has(article.id) ? (
+                  <span className="text-green-600 text-xl">✓</span>
+                ) : article.readAt ? (
+                  <span className="text-yellow-600 text-xs font-medium">Quiz pending</span>
+                ) : null}
+              </div>
             </div>
           </button>
         ))}

@@ -8,6 +8,7 @@ interface WeekStats {
   writing: number;
   vocabulary: number;
   speaking: number;
+  listening: number;
   wordsLearned: number;
   writingScores: number[];
   perfectDays: number;
@@ -37,6 +38,7 @@ export function WeeklySummary() {
       writing = 0,
       vocabulary = 0,
       speaking = 0,
+      listening = 0,
       perfectDays = 0;
     const writingScores: number[] = [];
 
@@ -46,11 +48,13 @@ export function WeeklySummary() {
       if (r.writing.completed) writing++;
       if (r.vocabulary.completed) vocabulary++;
       if (r.speaking.completed) speaking++;
+      if (r.listening?.completed) listening++;
       if (
         r.reading.completed &&
         r.writing.completed &&
         r.vocabulary.completed &&
-        r.speaking.completed
+        r.speaking.completed &&
+        (r.listening?.completed ?? false)
       )
         perfectDays++;
     }
@@ -72,6 +76,7 @@ export function WeeklySummary() {
       writing,
       vocabulary,
       speaking,
+      listening,
       wordsLearned,
       writingScores,
       perfectDays,
@@ -121,6 +126,7 @@ export function WeeklySummary() {
                 { label: "Writing", value: stats.writing, color: "bg-purple-500" },
                 { label: "Vocabulary", value: stats.vocabulary, color: "bg-green-500" },
                 { label: "Speaking", value: stats.speaking, color: "bg-orange-500" },
+                { label: "Listening", value: stats.listening, color: "bg-teal-500" },
               ] as const
             ).map(({ label, value, color }) => (
               <div key={label} className="mb-3 last:mb-0">

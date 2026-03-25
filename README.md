@@ -1,85 +1,52 @@
 # English Learning Tracker
 
-A Chrome extension that helps you build a daily English learning habit with four practice modules, progress tracking, and AI-powered feedback.
+A Chrome extension for building daily English learning habits with 5 practice tasks: Reading, Writing, Vocabulary, Speaking, and Listening.
 
 ## Features
 
-### Daily Learning Modules
-
-- **Reading** — Fetches articles from the New York Times API. Highlight unfamiliar words or phrases to get instant AI explanations, then save them to your vocabulary list.
-- **Writing** — Get a random topic, write a short essay, and submit it for AI review. Receive a score (0–100), grammar corrections, style suggestions, and an overall comment.
-- **Vocabulary** — Review saved words, quiz yourself with flashcards, and check in after completing phone-based practice.
-- **Speaking** — Check in after completing speaking practice on your phone.
-
-### Tracking & Motivation
-
-- Dashboard with daily task completion status
-- Streak tracking (current + longest)
-- Weekly summary with progress bars, words learned, and average writing scores
-- Toolbar badge showing remaining tasks (or "✓" when all done)
-- Pause toggle to temporarily disable the extension
+- **Reading** — Read NYT articles and take AI-generated comprehension quizzes
+- **Writing** — Practice writing on random topics with AI feedback (grammar, style, score 0-100)
+- **Vocabulary** — Build a word list from any webpage via right-click; review with flashcard quizzes
+- **Speaking** — Daily check-in to track speaking practice
+- **Listening** — IELTS-style listening practice with HD audio (OpenAI TTS) and 5-question quizzes
+- **Streak Tracking** — Complete all 5 tasks for a perfect day; track streaks and weekly stats
+- **Side Panel** — Quick task overview and check-in without leaving your current tab
+- **Context Menu** — Select any word on a webpage → right-click → get an AI-powered explanation
 
 ## Tech Stack
 
-- React 19 + TypeScript + Tailwind CSS 4
-- Vite + @crxjs/vite-plugin (Manifest V3)
-- Claude API (word explanations + writing review)
-- NYT Article Search API
-- Chrome Storage API (all data stored locally)
+- React 19 + TypeScript
+- Tailwind CSS v4
+- Vite + CRXJS (Chrome extension bundling)
+- Chrome Storage API
+- Multi-provider AI (Kimi, OpenAI, Claude, DeepSeek, Gemini)
+- OpenAI TTS for listening audio
 
 ## Setup
 
-### Prerequisites
-
-- Node.js 18+
-- A [NYT API key](https://developer.nytimes.com/)
-- An [Anthropic API key](https://console.anthropic.com/)
-
-### Install & Build
-
-```bash
-git clone https://github.com/cdcupt/eng_learn_plugin.git
-cd eng_learn_plugin
-npm install
-npm run build
-```
-
-### Load in Chrome
-
-1. Open `chrome://extensions`
-2. Enable **Developer mode** (top right)
-3. Click **Load unpacked**
-4. Select the `dist/` folder
-
-### Configure
-
-1. Click the extension icon in the toolbar
-2. Click **Open Dashboard**
-3. Go to **Settings**
-4. Enter your NYT API key and Claude API key
-5. Start learning!
+1. Clone the repository
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
+3. Build the extension:
+   ```bash
+   npm run build
+   ```
+4. Load in Chrome:
+   - Go to `chrome://extensions/`
+   - Enable "Developer mode"
+   - Click "Load unpacked" and select the `dist/` folder
+5. Open a new tab to see the dashboard, then go to **Settings** to configure:
+   - **NYT API Key** — for reading articles ([developer.nytimes.com](https://developer.nytimes.com))
+   - **AI Provider & Key** — for content generation, writing review, and word explanations
+   - **TTS API Key** (optional) — OpenAI key for HD listening audio; falls back to browser speech if not set
 
 ## Development
 
 ```bash
-npm run dev    # Start dev server with HMR
-npm run build  # Production build
-```
-
-## Project Structure
-
-```
-src/
-├── background/       # Service worker (alarms, badge updates)
-├── newtab/           # Full-page dashboard app
-│   ├── pages/        # Dashboard, Reading, Writing, Vocabulary, etc.
-│   ├── components/   # TaskCard, CheckInButton, Navigation
-│   └── hooks/        # useStorage, useDailyTasks
-├── popup/            # Toolbar popup (task status + pause toggle)
-├── sidepanel/        # Side panel (quick status + check-in)
-└── shared/           # Types, storage, API clients, utilities
-    ├── api/          # NYT and Claude API clients
-    └── utils/        # Date helpers, scoring/streak logic
+npm run dev      # Dev server with HMR
+npm run build    # Production build to dist/
 ```
 
 ## License
