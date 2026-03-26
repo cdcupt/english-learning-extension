@@ -52,8 +52,6 @@ export function App() {
         return <Vocabulary record={record!} onUpdate={update} />;
       case "speaking":
         return <Speaking record={record!} onUpdate={update} />;
-      case "listening":
-        return <Listening record={record!} onUpdate={update} />;
       case "history":
         return <PracticesHistory />;
       case "summary":
@@ -68,7 +66,13 @@ export function App() {
   return (
     <div className="flex h-screen bg-gray-50">
       <Navigation currentPage={page} onNavigate={setPage} />
-      <main className="flex-1 overflow-y-auto p-8">{renderPage()}</main>
+      <main className="flex-1 overflow-y-auto p-8">
+        {/* Keep Listening mounted to preserve state during generation */}
+        <div style={{ display: page === "listening" ? "block" : "none" }}>
+          <Listening record={record!} onUpdate={update} visible={page === "listening"} />
+        </div>
+        {page !== "listening" && renderPage()}
+      </main>
     </div>
   );
 }

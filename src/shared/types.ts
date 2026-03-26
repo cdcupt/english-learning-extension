@@ -8,12 +8,25 @@ export interface AIProviderConfig {
 
 export type TTSVoice = "alloy" | "echo" | "fable" | "onyx" | "nova" | "shimmer";
 
+export type TTSProvider = "openai" | "bytedance";
+
+export type BytedanceVoice =
+  | "BV001_streaming"
+  | "BV002_streaming"
+  | "BV503_streaming"
+  | "BV504_streaming";
+
 export interface Settings {
   nytApiKey: string;
   claudeApiKey: string; // kept for backward compatibility
   aiProvider: AIProviderConfig;
+  ttsProvider?: TTSProvider;
   ttsApiKey: string; // OpenAI API key for text-to-speech
   ttsVoice: TTSVoice;
+  bytedanceAppId?: string;
+  bytedanceToken?: string;
+  bytedanceCluster?: string;
+  bytedanceVoice?: BytedanceVoice;
   dailyArticleCount: 1 | 2 | 3 | 4 | 5;
   dailyListeningCount: 1 | 2 | 3 | 4 | 5;
   installedDate: string;

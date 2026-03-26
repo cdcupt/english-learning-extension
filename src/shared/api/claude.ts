@@ -1,4 +1,4 @@
-import type { AIProvider, AIProviderConfig, TTSVoice } from "../types";
+import type { AIProvider, AIProviderConfig, TTSVoice, BytedanceVoice } from "../types";
 
 // --- Provider registry ---
 
@@ -322,7 +322,7 @@ You MUST respond with valid JSON only, no markdown fences, in this exact format:
   }
 }
 
-// --- Text-to-Speech via OpenAI API ---
+// --- Text-to-Speech ---
 
 export async function generateSpeechAudio(
   text: string,
@@ -351,5 +351,39 @@ export async function generateSpeechAudio(
   }
 
   const blob = await res.blob();
+  return URL.createObjectURL(blob);
+}
+
+// --- Text-to-Speech via ByteDance OpenSpeech API ---
+// Routed through background service worker to bypass CORS restrictions
+
+export async function generateBytedanceSpeechAudio(
+  text: string,
+  appId: string,
+  token: string,
+  voice: BytedanceVoice = "BV504_streaming",
+  speed: number = 1,
+  cluster: string = "volcano_tts"
+): Promise<string> {
+  const response = await chrome.runtime.sendMessage({
+    type: "bytedance-tts",
+    appId,
+    token,
+    cluster,
+    voice,
+    text,
+    speed,
+  });
+
+  if (response.error) {
+    throw new Error(response.error);
+  }
+
+  const binaryStr = atob(response.data);
+  const bytes = new Uint8Array(binaryStr.length);
+  for (let i = 0; i < binaryStr.length; i++) {
+    bytes[i] = binaryStr.charCodeAt(i);
+  }
+  const blob = new Blob([bytes], { type: "audio/mpeg" });
   return URL.createObjectURL(blob);
 }

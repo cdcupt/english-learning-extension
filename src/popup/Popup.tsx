@@ -25,9 +25,14 @@ export function Popup() {
     const newPaused = !paused;
     setPaused(newPaused);
     await saveSettings({
+      ...settings,
       nytApiKey: settings?.nytApiKey ?? "",
       claudeApiKey: settings?.claudeApiKey ?? "",
+      aiProvider: settings?.aiProvider ?? { provider: "kimi", apiKey: "", model: "moonshot-v1-8k" },
+      ttsApiKey: settings?.ttsApiKey ?? "",
+      ttsVoice: settings?.ttsVoice ?? "nova",
       dailyArticleCount: settings?.dailyArticleCount ?? 2,
+      dailyListeningCount: settings?.dailyListeningCount ?? 2,
       installedDate: settings?.installedDate ?? new Date().toISOString().slice(0, 10),
       paused: newPaused,
     });
@@ -76,7 +81,7 @@ export function Popup() {
         <>
           <div className="text-center mb-4">
             <span className="text-2xl font-bold text-blue-600">
-              {completed}/4
+              {completed}/5
             </span>
             <p className="text-gray-500 text-xs mt-1">tasks completed today</p>
           </div>
@@ -89,6 +94,7 @@ export function Popup() {
                   { label: "Writing", done: record.writing.completed },
                   { label: "Vocabulary", done: record.vocabulary.completed },
                   { label: "Speaking", done: record.speaking.completed },
+                  { label: "Listening", done: record.listening?.completed ?? false },
                 ] as const
               ).map(({ label, done }) => (
                 <div

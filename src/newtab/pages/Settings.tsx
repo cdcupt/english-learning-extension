@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import type { Settings as SettingsType, AIProvider, TTSVoice } from "@/shared/types";
+import type { Settings as SettingsType, AIProvider, TTSVoice, TTSProvider, BytedanceVoice } from "@/shared/types";
 import { getSettings, saveSettings } from "@/shared/storage";
 import { getTodayKey } from "@/shared/utils/date";
 import { AI_PROVIDERS } from "@/shared/api/claude";
@@ -13,12 +13,19 @@ export function Settings() {
   const [model, setModel] = useState("");
   const [articleCount, setArticleCount] = useState<1 | 2 | 3 | 4 | 5>(2);
   const [listeningCount, setListeningCount] = useState<1 | 2 | 3 | 4 | 5>(2);
+  const [ttsProvider, setTtsProvider] = useState<TTSProvider>("openai");
   const [ttsApiKey, setTtsApiKey] = useState("");
   const [ttsVoice, setTtsVoice] = useState<TTSVoice>("nova");
+  const [bytedanceAppId, setBytedanceAppId] = useState("");
+  const [bytedanceToken, setBytedanceToken] = useState("");
+  const [bytedanceCluster, setBytedanceCluster] = useState("volcano_tts");
+  const [bytedanceVoice, setBytedanceVoice] = useState<BytedanceVoice>("BV504_streaming");
+  const [paused, setPaused] = useState(false);
   const [saved, setSaved] = useState(false);
   const [showNytKey, setShowNytKey] = useState(false);
   const [showAiKey, setShowAiKey] = useState(false);
   const [showTtsKey, setShowTtsKey] = useState(false);
+  const [showBytedanceToken, setShowBytedanceToken] = useState(false);
 
   useEffect(() => {
     getSettings().then((s) => {
@@ -26,8 +33,16 @@ export function Settings() {
         setNytApiKey(s.nytApiKey);
         setArticleCount(s.dailyArticleCount);
         setListeningCount(s.dailyListeningCount ?? 2);
+        setTtsProvider(s.ttsProvider ?? "openai");
         setTtsApiKey(s.ttsApiKey ?? "");
         setTtsVoice(s.ttsVoice ?? "nova");
+        setBytedanceAppId(s.bytedanceAppId ?? "");
+        setBytedanceToken(s.bytedanceToken ?? "");
+        setBytedanceCluster(s.bytedanceCluster ?? "volcano_tts");
+        const validVoices = ["BV001_streaming", "BV002_streaming", "BV503_streaming", "BV504_streaming"];
+        const savedVoice = s.bytedanceVoice ?? "";
+        setBytedanceVoice(validVoices.includes(savedVoice) ? savedVoice as BytedanceVoice : "BV504_streaming");
+        setPaused(s.paused ?? false);
         if (s.aiProvider) {
           setProvider(s.aiProvider.provider);
           setAiApiKey(s.aiProvider.apiKey);
@@ -57,8 +72,13 @@ export function Settings() {
         apiKey: aiApiKey,
         model,
       },
+      ttsProvider,
       ttsApiKey,
       ttsVoice,
+      bytedanceAppId,
+      bytedanceToken,
+      bytedanceCluster,
+      bytedanceVoice,
       dailyArticleCount: articleCount,
       dailyListeningCount: listeningCount,
       installedDate: existing?.installedDate ?? getTodayKey(),
@@ -191,54 +211,170 @@ export function Settings() {
             Listening Audio (Text-to-Speech)
           </h2>
           <p className="text-sm text-gray-500 -mt-2">
-            Uses OpenAI TTS API for high-quality audio in listening practices.
-            Falls back to browser speech if not configured.
+            High-quality audio for listening practices. Falls back to browser
+            speech if not configured.
           </p>
 
+          {/* TTS Provider Selection */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              OpenAI TTS API Key
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              TTS Provider
             </label>
-            <div className="relative">
-              <input
-                type={showTtsKey ? "text" : "password"}
-                value={ttsApiKey}
-                onChange={(e) => setTtsApiKey(e.target.value)}
-                placeholder="Enter your OpenAI API key for TTS"
-                className="w-full px-4 py-2 pr-16 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-              />
-              <button
-                type="button"
-                onClick={() => setShowTtsKey(!showTtsKey)}
-                className="absolute right-2 top-1/2 -translate-y-1/2 px-2 py-1 text-xs text-gray-500 hover:text-gray-700"
-              >
-                {showTtsKey ? "Hide" : "Show"}
-              </button>
+            <div className="grid grid-cols-2 gap-2">
+              {(
+                [
+                  { key: "openai" as TTSProvider, label: "OpenAI TTS" },
+                  { key: "bytedance" as TTSProvider, label: "ByteDance OpenSpeech" },
+                ] as const
+              ).map(({ key, label }) => (
+                <button
+                  key={key}
+                  onClick={() => setTtsProvider(key)}
+                  className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors text-left ${
+                    ttsProvider === key
+                      ? "bg-blue-600 text-white"
+                      : "bg-white border border-gray-200 text-gray-700 hover:border-blue-300"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
             </div>
-            <p className="text-xs text-gray-400 mt-1">
-              Get one at platform.openai.com — uses the same OpenAI key if you
-              already have one
-            </p>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Voice
-            </label>
-            <select
-              value={ttsVoice}
-              onChange={(e) => setTtsVoice(e.target.value as TTSVoice)}
-              className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-            >
-              {(
-                ["alloy", "echo", "fable", "onyx", "nova", "shimmer"] as const
-              ).map((v) => (
-                <option key={v} value={v}>
-                  {v.charAt(0).toUpperCase() + v.slice(1)}
-                </option>
-              ))}
-            </select>
-          </div>
+          {/* OpenAI TTS Config */}
+          {ttsProvider === "openai" && (
+            <>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  OpenAI TTS API Key
+                </label>
+                <div className="relative">
+                  <input
+                    type={showTtsKey ? "text" : "password"}
+                    value={ttsApiKey}
+                    onChange={(e) => setTtsApiKey(e.target.value)}
+                    placeholder="Enter your OpenAI API key for TTS"
+                    className="w-full px-4 py-2 pr-16 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowTtsKey(!showTtsKey)}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 px-2 py-1 text-xs text-gray-500 hover:text-gray-700"
+                  >
+                    {showTtsKey ? "Hide" : "Show"}
+                  </button>
+                </div>
+                <p className="text-xs text-gray-400 mt-1">
+                  Get one at platform.openai.com — uses the same OpenAI key if
+                  you already have one
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Voice
+                </label>
+                <select
+                  value={ttsVoice}
+                  onChange={(e) => setTtsVoice(e.target.value as TTSVoice)}
+                  className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                >
+                  {(
+                    ["alloy", "echo", "fable", "onyx", "nova", "shimmer"] as const
+                  ).map((v) => (
+                    <option key={v} value={v}>
+                      {v.charAt(0).toUpperCase() + v.slice(1)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </>
+          )}
+
+          {/* ByteDance OpenSpeech Config */}
+          {ttsProvider === "bytedance" && (
+            <>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  App ID
+                </label>
+                <input
+                  type="text"
+                  value={bytedanceAppId}
+                  onChange={(e) => setBytedanceAppId(e.target.value)}
+                  placeholder="Enter your Volcengine App ID"
+                  className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Access Token
+                </label>
+                <div className="relative">
+                  <input
+                    type={showBytedanceToken ? "text" : "password"}
+                    value={bytedanceToken}
+                    onChange={(e) => setBytedanceToken(e.target.value)}
+                    placeholder="Enter your Volcengine access token"
+                    className="w-full px-4 py-2 pr-16 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowBytedanceToken(!showBytedanceToken)}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 px-2 py-1 text-xs text-gray-500 hover:text-gray-700"
+                  >
+                    {showBytedanceToken ? "Hide" : "Show"}
+                  </button>
+                </div>
+                <p className="text-xs text-gray-400 mt-1">
+                  Get credentials at console.volcengine.com/speech/app
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Cluster
+                </label>
+                <input
+                  type="text"
+                  value={bytedanceCluster}
+                  onChange={(e) => setBytedanceCluster(e.target.value)}
+                  placeholder="volcano_tts"
+                  className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                />
+                <p className="text-xs text-gray-400 mt-1">
+                  Found in your Volcengine console, e.g. volcano_tts,
+                  volcano_mega_tts, volcano_icl
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Voice
+                </label>
+                <select
+                  value={bytedanceVoice}
+                  onChange={(e) => setBytedanceVoice(e.target.value as BytedanceVoice)}
+                  className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                >
+                  {(
+                    [
+                      { value: "BV504_streaming", label: "Jackson (English Male)" },
+                      { value: "BV503_streaming", label: "Ariana (English Female)" },
+                      { value: "BV001_streaming", label: "General Female (Chinese)" },
+                      { value: "BV002_streaming", label: "General Male (Chinese)" },
+                    ] as const
+                  ).map(({ value, label }) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </>
+          )}
         </div>
 
         {/* Daily Articles */}

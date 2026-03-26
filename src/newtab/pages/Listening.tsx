@@ -3,6 +3,7 @@ import type { DailyRecord, QuizQuestion } from "@/shared/types";
 import {
   generateListeningPractice,
   generateSpeechAudio,
+  generateBytedanceSpeechAudio,
   type ListeningPracticeResult,
 } from "@/shared/api/claude";
 import { getSettings } from "@/shared/storage";
@@ -10,6 +11,7 @@ import { getSettings } from "@/shared/storage";
 interface Props {
   record: DailyRecord;
   onUpdate: (updater: (r: DailyRecord) => DailyRecord) => Promise<void>;
+  visible?: boolean;
 }
 
 type PracticeState = "idle" | "generating" | "listen" | "quiz" | "result";
@@ -21,7 +23,7 @@ interface PracticeSession {
   submitted: boolean;
 }
 
-export function Listening({ record, onUpdate }: Props) {
+export function Listening({ record, onUpdate, visible }: Props) {
   const [targetCount, setTargetCount] = useState(2);
   const [sessions, setSessions] = useState<PracticeSession[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -36,15 +38,26 @@ export function Listening({ record, onUpdate }: Props) {
 
   const completedCount = record.listening?.practicesCompleted ?? 0;
 
-  useEffect(() => {
+  function loadTtsSettings() {
     getSettings().then((s) => {
       if (s?.dailyListeningCount) setTargetCount(s.dailyListeningCount);
-      const ttsKey =
-        s?.ttsApiKey ||
-        (s?.aiProvider?.provider === "openai" ? s.aiProvider.apiKey : null);
-      setHasTtsKey(!!ttsKey);
+      const provider = s?.ttsProvider ?? "openai";
+      let hasTts = false;
+      if (provider === "bytedance") {
+        hasTts = !!(s?.bytedanceAppId && s?.bytedanceToken);
+      } else {
+        const ttsKey =
+          s?.ttsApiKey ||
+          (s?.aiProvider?.provider === "openai" ? s.aiProvider.apiKey : null);
+        hasTts = !!ttsKey;
+      }
+      setHasTtsKey(hasTts);
     });
-  }, []);
+  }
+
+  useEffect(() => {
+    loadTtsSettings();
+  }, [visible]);
 
   // Cleanup audio URLs on unmount
   useEffect(() => {
@@ -69,26 +82,54 @@ export function Listening({ record, onUpdate }: Props) {
 
       const practice = await generateListeningPractice();
 
-      // Generate real audio — use dedicated TTS key, or OpenAI key if that's the AI provider
-      const ttsKey =
-        settings?.ttsApiKey ||
-        (settings?.aiProvider?.provider === "openai"
-          ? settings.aiProvider.apiKey
-          : null);
+      // Generate real audio — dispatch to configured TTS provider
+      const ttsProvider = settings?.ttsProvider ?? "openai";
       let audioUrl: string | null = null;
 
-      if (ttsKey) {
-        setGeneratingAudio(true);
-        try {
-          audioUrl = await generateSpeechAudio(
-            practice.passage,
-            ttsKey,
-            settings?.ttsVoice || "nova"
-          );
-        } catch (e) {
-          console.warn("TTS failed, falling back to browser speech:", e);
+      // Re-read settings fresh to get latest TTS config
+      const ttsSettings = await getSettings();
+      const activeTtsProvider = ttsSettings?.ttsProvider ?? "openai";
+
+      if (activeTtsProvider === "bytedance") {
+        const appId = ttsSettings?.bytedanceAppId?.trim();
+        const token = ttsSettings?.bytedanceToken?.trim();
+        if (appId && token) {
+          setGeneratingAudio(true);
+          try {
+            audioUrl = await generateBytedanceSpeechAudio(
+              practice.passage,
+              appId,
+              token,
+              (ttsSettings?.bytedanceVoice?.startsWith("BV") ? ttsSettings.bytedanceVoice : "BV504_streaming"),
+              1,
+              ttsSettings?.bytedanceCluster || "volcano_tts"
+            );
+          } catch (e) {
+            console.warn("ByteDance TTS failed, falling back to browser speech:", e);
+            setError(`TTS error: ${e instanceof Error ? e.message : "Unknown error"}. Using browser speech instead.`);
+          }
+          setGeneratingAudio(false);
         }
-        setGeneratingAudio(false);
+      } else {
+        const ttsKey =
+          ttsSettings?.ttsApiKey ||
+          (ttsSettings?.aiProvider?.provider === "openai"
+            ? ttsSettings.aiProvider.apiKey
+            : null);
+        if (ttsKey) {
+          setGeneratingAudio(true);
+          try {
+            audioUrl = await generateSpeechAudio(
+              practice.passage,
+              ttsKey,
+              ttsSettings?.ttsVoice || "nova"
+            );
+          } catch (e) {
+            console.warn("OpenAI TTS failed, falling back to browser speech:", e);
+            setError(`TTS error: ${e instanceof Error ? e.message : "Unknown error"}. Using browser speech instead.`);
+          }
+          setGeneratingAudio(false);
+        }
       }
 
       setSessions((prev) => [
@@ -240,11 +281,11 @@ export function Listening({ record, onUpdate }: Props) {
           {hasTtsKey === false && (
             <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4 text-left">
               <p className="text-sm text-amber-700 font-medium">
-                No TTS API key configured
+                No TTS credentials configured
               </p>
               <p className="text-xs text-amber-600 mt-1">
                 Audio will use low-quality browser speech synthesis. For
-                realistic HD audio, add your OpenAI API key in{" "}
+                realistic HD audio, configure OpenAI or ByteDance TTS in{" "}
                 <span className="font-semibold">
                   Settings → Listening Audio
                 </span>
@@ -297,7 +338,7 @@ export function Listening({ record, onUpdate }: Props) {
               </span>
               {!session.audioUrl && (
                 <span className="text-xs text-gray-400">
-                  Add OpenAI TTS key in Settings for HD audio
+                  Configure TTS in Settings for HD audio
                 </span>
               )}
             </div>

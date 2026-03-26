@@ -106,14 +106,15 @@ export function Reading({ record, onUpdate }: Props) {
   }
 
   if (selectedArticle) {
+    const liveArticle = articles.find((a) => a.id === selectedArticle.id) ?? selectedArticle;
     return (
       <ArticleReader
-        article={selectedArticle}
+        article={liveArticle}
         onBack={() => setSelectedArticle(null)}
-        onMarkRead={() => markRead(selectedArticle.id)}
-        onQuizComplete={() => handleQuizComplete(selectedArticle.id)}
-        isRead={!!selectedArticle.readAt}
-        quizCompleted={quizDone.has(selectedArticle.id)}
+        onMarkRead={() => markRead(liveArticle.id)}
+        onQuizComplete={() => handleQuizComplete(liveArticle.id)}
+        isRead={!!liveArticle.readAt}
+        quizCompleted={quizDone.has(liveArticle.id)}
       />
     );
   }
