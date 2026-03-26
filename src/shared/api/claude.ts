@@ -361,13 +361,15 @@ export async function generateBytedanceSpeechAudio(
   text: string,
   appId: string,
   token: string,
-  voice: BytedanceVoice = "en_male_adam",
-  speed: number = 1
+  voice: BytedanceVoice = "BV504_streaming",
+  speed: number = 1,
+  cluster: string = "volcano_tts"
 ): Promise<string> {
   const response = await chrome.runtime.sendMessage({
     type: "bytedance-tts",
     appId,
     token,
+    cluster,
     voice,
     text,
     speed,

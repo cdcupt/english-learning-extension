@@ -100,7 +100,9 @@ export function Listening({ record, onUpdate, visible }: Props) {
               practice.passage,
               appId,
               token,
-              ttsSettings?.bytedanceVoice || "en_male_adam"
+              (ttsSettings?.bytedanceVoice?.startsWith("BV") ? ttsSettings.bytedanceVoice : "BV504_streaming"),
+              1,
+              ttsSettings?.bytedanceCluster || "volcano_tts"
             );
           } catch (e) {
             console.warn("ByteDance TTS failed, falling back to browser speech:", e);

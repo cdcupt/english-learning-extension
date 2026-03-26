@@ -11,9 +11,10 @@ export type TTSVoice = "alloy" | "echo" | "fable" | "onyx" | "nova" | "shimmer";
 export type TTSProvider = "openai" | "bytedance";
 
 export type BytedanceVoice =
-  | "en_male_adam"
-  | "en_male_bob"
-  | "en_female_sarah";
+  | "BV001_streaming"
+  | "BV002_streaming"
+  | "BV503_streaming"
+  | "BV504_streaming";
 
 export interface Settings {
   nytApiKey: string;
@@ -24,6 +25,7 @@ export interface Settings {
   ttsVoice: TTSVoice;
   bytedanceAppId?: string;
   bytedanceToken?: string;
+  bytedanceCluster?: string;
   bytedanceVoice?: BytedanceVoice;
   dailyArticleCount: 1 | 2 | 3 | 4 | 5;
   dailyListeningCount: 1 | 2 | 3 | 4 | 5;

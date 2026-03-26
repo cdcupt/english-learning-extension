@@ -143,40 +143,73 @@ function getNextMidnight(): number {
 }
 
 // Handle ByteDance TTS request from extension pages (CORS bypass)
+// Splits long text into <=800 byte chunks to stay within V1 API limit (1024 bytes)
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg.type === "bytedance-tts") {
-    const { appId, token, voice, text, speed } = msg;
-    const reqid = crypto.randomUUID();
+    const { appId, token, cluster, voice, text, speed } = msg;
 
-    fetch("https://openspeech.bytedance.com/api/v1/tts", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer;${token}`,
-      },
-      body: JSON.stringify({
-        app: { appid: appId, token, cluster: "volcano_tts" },
+    function splitText(input: string, maxBytes: number): string[] {
+      const chunks: string[] = [];
+      const sentences = input.split(/(?<=[.!?。！？])\s+/);
+      let current = "";
+      for (const sentence of sentences) {
+        const combined = current ? current + " " + sentence : sentence;
+        if (new TextEncoder().encode(combined).length > maxBytes && current) {
+          chunks.push(current);
+          current = sentence;
+        } else {
+          current = combined;
+        }
+      }
+      if (current) chunks.push(current);
+      return chunks;
+    }
+
+    async function synthesizeChunk(chunkText: string): Promise<string> {
+      const reqid = crypto.randomUUID();
+      const payload = {
+        app: { appid: String(appId), token: String(token), cluster: String(cluster || "volcano_tts") },
         user: { uid: "eng_learn_extension" },
         audio: {
-          voice_type: voice || "en_male_adam",
+          voice_type: String(voice || "BV504_streaming"),
           encoding: "mp3",
-          speed_ratio: speed || 1,
+          speed_ratio: Number(speed) || 1.0,
           volume_ratio: 1.0,
           pitch_ratio: 1.0,
         },
-        request: { reqid, text, operation: "query" },
-      }),
-    })
-      .then((res) => res.json())
-      .then((result) => {
-        if (result.code !== 3000) {
-          sendResponse({ error: `ByteDance TTS error: ${result.code} - ${result.message || "Unknown"}` });
-        } else {
-          sendResponse({ data: result.data });
-        }
+        request: {
+          reqid,
+          text: chunkText,
+          text_type: "plain",
+          operation: "query",
+        },
+      };
+      console.log("[ByteDance TTS] Request:", JSON.stringify({ ...payload, app: { ...payload.app, token: "***" } }));
+      const res = await fetch("https://openspeech.bytedance.com/api/v1/tts", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer;${token}`,
+        },
+        body: JSON.stringify(payload),
+      });
+      const result = await res.json();
+      console.log("[ByteDance TTS] Response:", result.code, result.message);
+      if (result.code !== 3000) {
+        throw new Error(`${result.code} - ${result.message || "Unknown"}`);
+      }
+      return result.data;
+    }
+
+    const chunks = splitText(text, 800);
+    Promise.all(chunks.map(synthesizeChunk))
+      .then((base64Chunks) => {
+        // Concatenate all base64 audio data
+        const combined = base64Chunks.join("");
+        sendResponse({ data: combined });
       })
       .catch((e) => {
-        sendResponse({ error: e instanceof Error ? e.message : "ByteDance TTS fetch failed" });
+        sendResponse({ error: `ByteDance TTS error: ${e instanceof Error ? e.message : "Unknown"}` });
       });
 
     return true; // keep message channel open for async sendResponse

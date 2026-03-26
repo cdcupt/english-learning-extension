@@ -18,7 +18,8 @@ export function Settings() {
   const [ttsVoice, setTtsVoice] = useState<TTSVoice>("nova");
   const [bytedanceAppId, setBytedanceAppId] = useState("");
   const [bytedanceToken, setBytedanceToken] = useState("");
-  const [bytedanceVoice, setBytedanceVoice] = useState<BytedanceVoice>("en_male_adam");
+  const [bytedanceCluster, setBytedanceCluster] = useState("volcano_tts");
+  const [bytedanceVoice, setBytedanceVoice] = useState<BytedanceVoice>("BV504_streaming");
   const [paused, setPaused] = useState(false);
   const [saved, setSaved] = useState(false);
   const [showNytKey, setShowNytKey] = useState(false);
@@ -37,7 +38,10 @@ export function Settings() {
         setTtsVoice(s.ttsVoice ?? "nova");
         setBytedanceAppId(s.bytedanceAppId ?? "");
         setBytedanceToken(s.bytedanceToken ?? "");
-        setBytedanceVoice(s.bytedanceVoice ?? "en_male_adam");
+        setBytedanceCluster(s.bytedanceCluster ?? "volcano_tts");
+        const validVoices = ["BV001_streaming", "BV002_streaming", "BV503_streaming", "BV504_streaming"];
+        const savedVoice = s.bytedanceVoice ?? "";
+        setBytedanceVoice(validVoices.includes(savedVoice) ? savedVoice as BytedanceVoice : "BV504_streaming");
         setPaused(s.paused ?? false);
         if (s.aiProvider) {
           setProvider(s.aiProvider.provider);
@@ -73,6 +77,7 @@ export function Settings() {
       ttsVoice,
       bytedanceAppId,
       bytedanceToken,
+      bytedanceCluster,
       bytedanceVoice,
       dailyArticleCount: articleCount,
       dailyListeningCount: listeningCount,
@@ -330,6 +335,23 @@ export function Settings() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Cluster
+                </label>
+                <input
+                  type="text"
+                  value={bytedanceCluster}
+                  onChange={(e) => setBytedanceCluster(e.target.value)}
+                  placeholder="volcano_tts"
+                  className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                />
+                <p className="text-xs text-gray-400 mt-1">
+                  Found in your Volcengine console, e.g. volcano_tts,
+                  volcano_mega_tts, volcano_icl
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
                   Voice
                 </label>
                 <select
@@ -339,9 +361,10 @@ export function Settings() {
                 >
                   {(
                     [
-                      { value: "en_male_adam", label: "Adam (American Male)" },
-                      { value: "en_male_bob", label: "Bob (British Male)" },
-                      { value: "en_female_sarah", label: "Sarah (Australian Female)" },
+                      { value: "BV504_streaming", label: "Jackson (English Male)" },
+                      { value: "BV503_streaming", label: "Ariana (English Female)" },
+                      { value: "BV001_streaming", label: "General Female (Chinese)" },
+                      { value: "BV002_streaming", label: "General Male (Chinese)" },
                     ] as const
                   ).map(({ value, label }) => (
                     <option key={value} value={value}>
