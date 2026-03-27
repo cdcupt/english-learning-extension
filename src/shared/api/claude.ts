@@ -361,15 +361,13 @@ export async function generateBytedanceSpeechAudio(
   text: string,
   appId: string,
   token: string,
-  voice: BytedanceVoice = "BV504_streaming",
-  speed: number = 1,
-  cluster: string = "volcano_tts"
+  voice: string = "en_female_dacey_uranus_bigtts",
+  speed: number = 1
 ): Promise<string> {
   const response = await chrome.runtime.sendMessage({
     type: "bytedance-tts",
     appId,
     token,
-    cluster,
     voice,
     text,
     speed,
@@ -431,37 +429,19 @@ const SPEAKING_TOPICS = [
 export async function generateSpeakingPrompt(): Promise<SpeakingPromptResult> {
   const topic = SPEAKING_TOPICS[Math.floor(Math.random() * SPEAKING_TOPICS.length)];
 
-  const system = `You are an English pronunciation coach specializing in connected speech patterns.
-Generate a natural English passage (80-150 words, 4-8 sentences) for a speaking practice scenario. The passage should read like a short monologue or one side of a conversation — natural, flowing, and realistic.
+  const system = `You are an English speaking coach.
+Generate a natural English passage (80-150 words, 4-8 sentences) for a speaking practice scenario. The passage should read like a short monologue or one side of a conversation — natural, flowing, and realistic. Use contractions and natural phrasing as a native speaker would.
 
 You MUST respond with valid JSON only, no markdown fences, in this exact format:
 {
   "topic": "Short topic label",
   "scenario": "Brief scenario description (1 sentence)",
-  "text": "The full passage to practice (natural spoken English, 80-150 words, 4-8 sentences). Use contractions, filler words, and natural phrasing as a native speaker would.",
-  "annotations": [
-    {
-      "startIndex": 0,
-      "endIndex": 10,
-      "type": "linking",
-      "written": "the exact substring from text",
-      "spoken": "how it sounds in natural speech",
-      "explanation": "Why this connected speech pattern occurs"
-    }
-  ],
+  "text": "The full passage to practice.",
+  "annotations": [],
   "difficulty": "intermediate"
 }
 
-Connected speech types to annotate:
-- "linking": consonant-vowel linking across words (e.g., "an apple" → "a-napple")
-- "elision": dropped sounds (e.g., "next day" → "nex' day", /t/ dropped)
-- "assimilation": sound changes at word boundaries (e.g., "don't you" → "donchu")
-- "reduction": weak forms of function words (e.g., "to" → "tuh", "and" → "'n")
-- "contraction": contracted forms (e.g., "I would have" → "I'd've")
-- "intrusion": inserted linking sounds (e.g., "go on" → "go-w-on")
-
-CRITICAL: startIndex and endIndex must be exact character positions in the "text" field. text.substring(startIndex, endIndex) must equal the "written" field exactly.
-Include 6-12 annotations spread across the passage. Focus on the most natural and common connected speech patterns. Aim for variety — don't annotate only one type.`;
+The "annotations" array should always be empty. Difficulty should be one of: "beginner", "intermediate", "advanced".`;
 
   const text = await callWithSettings(
     system,
@@ -469,8 +449,10 @@ Include 6-12 annotations spread across the passage. Focus on the most natural an
   );
 
   try {
-    return JSON.parse(text);
+    const cleaned = text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/, "").trim();
+    return JSON.parse(cleaned);
   } catch {
+    console.error("[Speaking] Failed to parse prompt response:", text.substring(0, 300));
     throw new Error("Failed to generate speaking prompt. Please try again.");
   }
 }
@@ -531,14 +513,14 @@ export async function recognizeSpeechBytedance(
   audioBase64: string,
   appId: string,
   token: string,
-  cluster: string = "volcano_auc",
-  audioFormat: string = "wav"
+  cluster: string = "volc.seedasr.sauc.duration",
+  audioFormat: string = "webm"
 ): Promise<string> {
   const response = await chrome.runtime.sendMessage({
     type: "bytedance-asr",
     appId,
     token,
-    cluster,
+    resourceId: cluster,
     audioBase64,
     audioFormat,
   });

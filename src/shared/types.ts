@@ -11,6 +11,7 @@ export type TTSVoice = "alloy" | "echo" | "fable" | "onyx" | "nova" | "shimmer";
 export type TTSProvider = "openai" | "bytedance";
 
 export type BytedanceVoice =
+  | "en_female_dacey_uranus_bigtts"
   | "BV001_streaming"
   | "BV002_streaming"
   | "BV503_streaming"

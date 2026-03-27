@@ -19,8 +19,8 @@ export function Settings() {
   const [bytedanceAppId, setBytedanceAppId] = useState("");
   const [bytedanceToken, setBytedanceToken] = useState("");
   const [bytedanceCluster, setBytedanceCluster] = useState("volcano_tts");
-  const [bytedanceVoice, setBytedanceVoice] = useState<BytedanceVoice>("BV504_streaming");
-  const [bytedanceAsrCluster, setBytedanceAsrCluster] = useState("volcano_auc");
+  const [bytedanceVoice, setBytedanceVoice] = useState<BytedanceVoice>("en_female_dacey_uranus_bigtts");
+  const [bytedanceAsrCluster, setBytedanceAsrCluster] = useState("volc.seedasr.sauc.duration");
   const [speakingCount, setSpeakingCount] = useState<1 | 2 | 3 | 4 | 5>(2);
   const [paused, setPaused] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -41,10 +41,10 @@ export function Settings() {
         setBytedanceAppId(s.bytedanceAppId ?? "");
         setBytedanceToken(s.bytedanceToken ?? "");
         setBytedanceCluster(s.bytedanceCluster ?? "volcano_tts");
-        const validVoices = ["BV001_streaming", "BV002_streaming", "BV503_streaming", "BV504_streaming"];
+        const validVoices = ["en_female_dacey_uranus_bigtts", "BV001_streaming", "BV002_streaming", "BV503_streaming", "BV504_streaming"];
         const savedVoice = s.bytedanceVoice ?? "";
-        setBytedanceVoice(validVoices.includes(savedVoice) ? savedVoice as BytedanceVoice : "BV504_streaming");
-        setBytedanceAsrCluster(s.bytedanceAsrCluster ?? "volcano_auc");
+        setBytedanceVoice(validVoices.includes(savedVoice) ? savedVoice as BytedanceVoice : "en_female_dacey_uranus_bigtts");
+        setBytedanceAsrCluster(s.bytedanceAsrCluster ?? "volc.seedasr.sauc.duration");
         setSpeakingCount(s.dailySpeakingCount ?? 2);
         setPaused(s.paused ?? false);
         if (s.aiProvider) {
@@ -367,10 +367,11 @@ export function Settings() {
                 >
                   {(
                     [
-                      { value: "BV504_streaming", label: "Jackson (English Male)" },
-                      { value: "BV503_streaming", label: "Ariana (English Female)" },
-                      { value: "BV001_streaming", label: "General Female (Chinese)" },
-                      { value: "BV002_streaming", label: "General Male (Chinese)" },
+                      { value: "en_female_dacey_uranus_bigtts", label: "Dacey (English Female - TTS 2.0)" },
+                      { value: "BV504_streaming", label: "Jackson (English Male - V1)" },
+                      { value: "BV503_streaming", label: "Ariana (English Female - V1)" },
+                      { value: "BV001_streaming", label: "General Female (Chinese - V1)" },
+                      { value: "BV002_streaming", label: "General Male (Chinese - V1)" },
                     ] as const
                   ).map(({ value, label }) => (
                     <option key={value} value={value}>
@@ -381,17 +382,17 @@ export function Settings() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  ASR Cluster (Speech Recognition)
+                  ASR Resource ID (Speech Recognition)
                 </label>
                 <input
                   type="text"
                   value={bytedanceAsrCluster}
                   onChange={(e) => setBytedanceAsrCluster(e.target.value)}
-                  placeholder="volcano_auc"
+                  placeholder="volc.seedasr.sauc.duration"
                   className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                 />
                 <p className="text-xs text-gray-400 mt-1">
-                  Used for speaking practice pronunciation verification
+                  V3 bigmodel resource ID for speaking practice (e.g. volc.bigasr.auc)
                 </p>
               </div>
             </>

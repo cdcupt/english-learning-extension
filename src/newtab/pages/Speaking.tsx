@@ -55,6 +55,7 @@ export function Speaking({ record, onUpdate, visible }: Props) {
   const [generatingAudio, setGeneratingAudio] = useState(false);
   const [hoveredAnnotation, setHoveredAnnotation] = useState<number | null>(null);
   const [recordingTime, setRecordingTime] = useState(0);
+  const [dayData, setDayData] = useState<SpeakingDayData | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -73,6 +74,7 @@ export function Speaking({ record, onUpdate, visible }: Props) {
     getSettings().then((s) => {
       if (s?.dailySpeakingCount) setTargetCount(s.dailySpeakingCount);
     });
+    getSpeakingDayData(getTodayKey()).then((d) => setDayData(d ?? null));
   }, [visible]);
 
   // Cleanup audio URLs on unmount
@@ -88,6 +90,44 @@ export function Speaking({ record, onUpdate, visible }: Props) {
       if (timerRef.current) clearInterval(timerRef.current);
     };
   }, []);
+
+  async function generateReferenceAudio(text: string) {
+    const ttsSettings = await getSettings();
+    const ttsProvider = ttsSettings?.ttsProvider ?? "openai";
+    let audioUrl: string | null = null;
+
+    if (ttsProvider === "bytedance") {
+      const appId = ttsSettings?.bytedanceAppId?.trim();
+      const token = ttsSettings?.bytedanceToken?.trim();
+      if (appId && token) {
+        setGeneratingAudio(true);
+        try {
+          audioUrl = await generateBytedanceSpeechAudio(
+            text, appId, token,
+            ttsSettings?.bytedanceVoice || "en_female_dacey_uranus_bigtts", 1
+          );
+        } catch (e) {
+          console.warn("ByteDance TTS failed:", e);
+        }
+        setGeneratingAudio(false);
+      }
+    } else {
+      const ttsKey =
+        ttsSettings?.ttsApiKey ||
+        (ttsSettings?.aiProvider?.provider === "openai" ? ttsSettings.aiProvider.apiKey : null);
+      if (ttsKey) {
+        setGeneratingAudio(true);
+        try {
+          audioUrl = await generateSpeechAudio(text, ttsKey, ttsSettings?.ttsVoice || "nova");
+        } catch (e) {
+          console.warn("OpenAI TTS failed:", e);
+        }
+        setGeneratingAudio(false);
+      }
+    }
+
+    setReferenceAudioUrl(audioUrl);
+  }
 
   async function handleGenerate() {
     setState("generating");
@@ -108,47 +148,7 @@ export function Speaking({ record, onUpdate, visible }: Props) {
         ...promptResult,
       };
       setCurrentPrompt(prompt);
-
-      // Generate reference audio
-      const ttsSettings = await getSettings();
-      const ttsProvider = ttsSettings?.ttsProvider ?? "openai";
-      let audioUrl: string | null = null;
-
-      if (ttsProvider === "bytedance") {
-        const appId = ttsSettings?.bytedanceAppId?.trim();
-        const token = ttsSettings?.bytedanceToken?.trim();
-        if (appId && token) {
-          setGeneratingAudio(true);
-          try {
-            audioUrl = await generateBytedanceSpeechAudio(
-              prompt.text,
-              appId,
-              token,
-              ttsSettings?.bytedanceVoice?.startsWith("BV") ? ttsSettings.bytedanceVoice : "BV504_streaming",
-              1,
-              ttsSettings?.bytedanceCluster || "volcano_tts"
-            );
-          } catch (e) {
-            console.warn("ByteDance TTS failed:", e);
-          }
-          setGeneratingAudio(false);
-        }
-      } else {
-        const ttsKey =
-          ttsSettings?.ttsApiKey ||
-          (ttsSettings?.aiProvider?.provider === "openai" ? ttsSettings.aiProvider.apiKey : null);
-        if (ttsKey) {
-          setGeneratingAudio(true);
-          try {
-            audioUrl = await generateSpeechAudio(prompt.text, ttsKey, ttsSettings?.ttsVoice || "nova");
-          } catch (e) {
-            console.warn("OpenAI TTS failed:", e);
-          }
-          setGeneratingAudio(false);
-        }
-      }
-
-      setReferenceAudioUrl(audioUrl);
+      await generateReferenceAudio(prompt.text);
 
       // Save prompt to day data
       const today = getTodayKey();
@@ -194,55 +194,10 @@ export function Speaking({ record, onUpdate, visible }: Props) {
 
   async function handleStartRecording() {
     setError(null);
-
-    // Check if ByteDance ASR is configured; if not, start live Web Speech recognition
-    const settings = await getSettings();
-    const hasAsrCredentials = !!(settings?.bytedanceAppId?.trim() && settings?.bytedanceToken?.trim());
-
-    if (!hasAsrCredentials) {
-      // Use live Web Speech API — records and transcribes simultaneously
-      startWebSpeechRecording();
-      return;
-    }
-
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      streamRef.current = stream;
-      audioChunksRef.current = [];
-      recordingStoppedRef.current = false;
-      recordingModeRef.current = "bytedance";
-
-      const recorder = new MediaRecorder(stream, {
-        mimeType: MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
-          ? "audio/webm;codecs=opus"
-          : "audio/webm",
-      });
-
-      recorder.ondataavailable = (e) => {
-        if (e.data.size > 0) audioChunksRef.current.push(e.data);
-      };
-
-      recorder.onstop = () => {
-        stream.getTracks().forEach((t) => t.stop());
-        if (timerRef.current) {
-          clearInterval(timerRef.current);
-          timerRef.current = null;
-        }
-        recordingStoppedRef.current = true;
-      };
-
-      mediaRecorderRef.current = recorder;
-      recorder.start(100); // collect in 100ms chunks
-      setRecordingTime(0);
-      timerRef.current = setInterval(() => setRecordingTime((t) => t + 1), 1000);
-      setState("recording");
-    } catch (e) {
-      setError(
-        e instanceof Error && e.name === "NotAllowedError"
-          ? "Microphone permission denied. Please allow microphone access and try again."
-          : "Failed to start recording. Please check your microphone."
-      );
-    }
+    // Always use Web Speech API for recognition — ByteDance streaming ASR (v3)
+    // requires WebSocket with custom headers which browsers cannot do.
+    // ByteDance is still used for TTS (reference audio playback).
+    startWebSpeechRecording();
   }
 
   function startWebSpeechRecording() {
@@ -260,20 +215,29 @@ export function Speaking({ record, onUpdate, visible }: Props) {
       const recognition = new SpeechRecognitionCtor();
       recognition.lang = "en-US";
       recognition.continuous = true;
-      recognition.interimResults = false;
+      recognition.interimResults = true;
       recognition.maxAlternatives = 1;
 
       webSpeechTranscriptRef.current = "";
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       recognition.onresult = (event: any) => {
-        let transcript = "";
+        let finalTranscript = "";
+        let interimTranscript = "";
         for (let i = 0; i < event.results.length; i++) {
           if (event.results[i].isFinal) {
-            transcript += event.results[i][0].transcript + " ";
+            finalTranscript += event.results[i][0].transcript + " ";
+          } else {
+            interimTranscript += event.results[i][0].transcript + " ";
           }
         }
-        webSpeechTranscriptRef.current = transcript.trim();
+        // Use final results if available, otherwise keep interim as fallback
+        webSpeechTranscriptRef.current = finalTranscript.trim() || interimTranscript.trim();
+        console.log("[Web Speech] Result: final=", JSON.stringify(finalTranscript.trim()), "interim=", JSON.stringify(interimTranscript.trim()));
+      };
+
+      recognition.onend = () => {
+        console.log("[Web Speech] Recognition ended. Transcript:", JSON.stringify(webSpeechTranscriptRef.current));
       };
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -307,8 +271,8 @@ export function Speaking({ record, onUpdate, visible }: Props) {
       // Stop Web Speech API recognition
       if (webSpeechRef.current) {
         webSpeechRef.current.stop();
-        // Small delay to let final results come in
-        await new Promise((resolve) => setTimeout(resolve, 300));
+        // Wait for final results to come in after stop
+        await new Promise((resolve) => setTimeout(resolve, 800));
         transcription = webSpeechTranscriptRef.current;
         webSpeechRef.current = null;
       }
@@ -347,8 +311,8 @@ export function Speaking({ record, onUpdate, visible }: Props) {
             base64,
             appId,
             token,
-            asrCluster || "volcano_auc",
-            "mp3"
+            settings?.bytedanceAsrCluster || "volc.seedasr.sauc.duration",
+            "webm"
           );
         }
       } catch (e) {
@@ -385,6 +349,7 @@ export function Speaking({ record, onUpdate, visible }: Props) {
       const dayData = (await getSpeakingDayData(today)) ?? { date: today, prompts: [], results: [] };
       dayData.results.push(result);
       await saveSpeakingDayData(dayData);
+      setDayData({ ...dayData });
 
       // Update daily record
       const newCompleted = completedCount + 1;
@@ -485,6 +450,12 @@ export function Speaking({ record, onUpdate, visible }: Props) {
               Average score: {record.speaking.averageScore}/100
             </p>
           )}
+          <button
+            onClick={handleGenerate}
+            className="mt-4 px-5 py-2 text-sm font-medium text-green-700 bg-green-100 rounded-lg hover:bg-green-200 transition-colors"
+          >
+            + Practice More
+          </button>
         </div>
       )}
 
@@ -492,23 +463,11 @@ export function Speaking({ record, onUpdate, visible }: Props) {
       {state === "idle" && !isTaskDone && (
         <div className="bg-white rounded-xl border border-gray-200 p-8 text-center">
           <p className="text-gray-600 mb-2">
-            Practice speaking with AI-generated passages featuring connected speech patterns.
+            Practice speaking with AI-generated passages.
           </p>
           <p className="text-sm text-gray-400 mb-6">
             Read the passage aloud, then get feedback on your pronunciation.
           </p>
-
-          {/* Legend */}
-          <div className="flex flex-wrap justify-center gap-2 mb-6">
-            {Object.entries(ANNOTATION_COLORS).map(([type, colors]) => (
-              <span
-                key={type}
-                className={`inline-flex items-center px-2 py-0.5 rounded border text-xs ${colors.bg} ${colors.text}`}
-              >
-                {colors.label}
-              </span>
-            ))}
-          </div>
 
           <button
             onClick={handleGenerate}
@@ -517,6 +476,54 @@ export function Speaking({ record, onUpdate, visible }: Props) {
             Start Practice {completedCount + 1}
           </button>
           {error && <p className="text-red-600 text-sm mt-3">{error}</p>}
+        </div>
+      )}
+
+      {/* Practice History */}
+      {state === "idle" && dayData && dayData.prompts.length > 0 && (
+        <div className="mt-6 space-y-3">
+          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Today's Practices</h2>
+          {dayData.prompts.slice(-5).map((prompt, i) => {
+            const results = dayData.results.filter((r) => r.promptId === prompt.id);
+            const bestScore = results.length > 0 ? Math.max(...results.map((r) => r.score)) : null;
+            const lastResult = results.length > 0 ? results[results.length - 1] : null;
+            return (
+              <div key={prompt.id} className="bg-white rounded-xl border border-gray-200 p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-xs font-medium text-gray-400 uppercase">{prompt.topic}</span>
+                      <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${
+                        prompt.difficulty === "beginner" ? "bg-green-100 text-green-700"
+                        : prompt.difficulty === "advanced" ? "bg-red-100 text-red-700"
+                        : "bg-yellow-100 text-yellow-700"
+                      }`}>{prompt.difficulty}</span>
+                    </div>
+                    <p className="text-sm text-gray-700 line-clamp-2">{prompt.text.substring(0, 100)}...</p>
+                    {lastResult && (
+                      <div className="flex items-center gap-3 mt-2 text-xs text-gray-500">
+                        <span>Best: <strong className={bestScore! >= 80 ? "text-green-600" : bestScore! >= 60 ? "text-blue-600" : "text-amber-600"}>{bestScore}/100</strong></span>
+                        <span>Attempts: {results.length}</span>
+                      </div>
+                    )}
+                  </div>
+                  <button
+                    onClick={async () => {
+                      setCurrentPrompt(prompt);
+                      setCurrentResult(null);
+                      setReferenceAudioUrl(null);
+                      setError(null);
+                      setState("practice");
+                      await generateReferenceAudio(prompt.text);
+                    }}
+                    className="shrink-0 px-3 py-1.5 text-sm font-medium text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors"
+                  >
+                    Practice
+                  </button>
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
 
@@ -534,6 +541,20 @@ export function Speaking({ record, onUpdate, visible }: Props) {
       {/* Practice state — show annotated text and controls */}
       {(state === "practice" || state === "recording") && currentPrompt && (
         <div className="space-y-4">
+          {state === "practice" && (
+            <button
+              onClick={() => {
+                setCurrentPrompt(null);
+                setCurrentResult(null);
+                if (referenceAudioUrl) URL.revokeObjectURL(referenceAudioUrl);
+                setReferenceAudioUrl(null);
+                setState("idle");
+              }}
+              className="text-sm text-gray-500 hover:text-gray-700 transition-colors"
+            >
+              &larr; Back to list
+            </button>
+          )}
           {/* Prompt card */}
           <div className="bg-white rounded-xl border border-gray-200 p-6">
             <div className="flex items-center gap-2 mb-2">
@@ -552,13 +573,10 @@ export function Speaking({ record, onUpdate, visible }: Props) {
             </div>
             <p className="text-sm text-gray-500 mb-4">{currentPrompt.scenario}</p>
 
-            {/* Annotated passage */}
+            {/* Passage */}
             <div className="bg-gray-50 rounded-lg p-5 mb-4 max-h-64 overflow-y-auto">
               <p className="text-base leading-loose text-gray-900">
-                {renderAnnotatedText(currentPrompt.text, currentPrompt.annotations)}
-              </p>
-              <p className="text-xs text-gray-400 mt-3">
-                Hover over highlighted words to see connected speech details
+                {currentPrompt.text}
               </p>
             </div>
 
@@ -616,8 +634,7 @@ export function Speaking({ record, onUpdate, visible }: Props) {
           {/* Tips */}
           <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
             <p className="text-sm text-yellow-700">
-              Tip: Listen to the reference audio first, pay attention to the connected speech
-              patterns (highlighted), then record yourself reading the full passage naturally.
+              Tip: Listen to the reference audio first, then record yourself reading the passage naturally.
             </p>
           </div>
 
@@ -705,45 +722,34 @@ export function Speaking({ record, onUpdate, visible }: Props) {
             </div>
           )}
 
-          {/* Connected speech reference */}
-          <div className="bg-white rounded-xl border border-gray-200 p-5">
-            <h3 className="font-semibold text-gray-900 mb-3">Connected Speech Patterns</h3>
-            <div className="space-y-2">
-              {currentPrompt.annotations.map((ann, i) => {
-                const colors = ANNOTATION_COLORS[ann.type] ?? ANNOTATION_COLORS.linking;
-                return (
-                  <div key={i} className={`rounded-lg border p-3 ${colors.bg}`}>
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className={`text-xs font-semibold uppercase ${colors.text}`}>
-                        {colors.label}
-                      </span>
-                    </div>
-                    <p className="text-sm text-gray-800">
-                      &ldquo;{ann.written}&rdquo; → &ldquo;{ann.spoken}&rdquo;
-                    </p>
-                    <p className="text-xs text-gray-600 mt-1">{ann.explanation}</p>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Next button */}
-          {!isTaskDone ? (
+          {/* Action buttons */}
+          <div className="flex gap-3">
             <button
-              onClick={handleNext}
-              className="w-full py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+              onClick={() => {
+                setCurrentResult(null);
+                setError(null);
+                setState("practice");
+              }}
+              className="flex-1 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors font-medium"
             >
-              Next Practice ({completedCount}/{targetCount})
+              Try Again
             </button>
-          ) : (
-            <div className="bg-green-50 border border-green-200 rounded-xl p-6 text-center">
-              <span className="text-green-600 text-xl font-bold">&#10003;</span>
-              <p className="text-green-700 font-medium mt-2">
-                All speaking practices completed for today!
-              </p>
-            </div>
-          )}
+            {!isTaskDone ? (
+              <button
+                onClick={handleNext}
+                className="flex-1 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+              >
+                Next ({completedCount}/{targetCount})
+              </button>
+            ) : (
+              <button
+                onClick={handleNext}
+                className="flex-1 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors font-medium"
+              >
+                Back to List
+              </button>
+            )}
+          </div>
         </div>
       )}
     </div>
