@@ -11,6 +11,7 @@ export type TTSVoice = "alloy" | "echo" | "fable" | "onyx" | "nova" | "shimmer";
 export type TTSProvider = "openai" | "bytedance";
 
 export type BytedanceVoice =
+  | "en_female_dacey_uranus_bigtts"
   | "BV001_streaming"
   | "BV002_streaming"
   | "BV503_streaming"
@@ -29,6 +30,8 @@ export interface Settings {
   bytedanceVoice?: BytedanceVoice;
   dailyArticleCount: 1 | 2 | 3 | 4 | 5;
   dailyListeningCount: 1 | 2 | 3 | 4 | 5;
+  dailySpeakingCount?: 1 | 2 | 3 | 4 | 5;
+  bytedanceAsrCluster?: string;
   installedDate: string;
   paused: boolean;
 }
@@ -51,6 +54,8 @@ export interface DailyRecord {
   speaking: {
     completed: boolean;
     checkedInAt: string | null;
+    practicesCompleted?: number;
+    averageScore?: number;
   };
   listening: {
     completed: boolean;
@@ -137,6 +142,62 @@ export interface ListeningPractice {
   scenario: string;
   passage: string;
   questions: QuizQuestion[];
+}
+
+// --- Speaking Practice Types ---
+
+export type ConnectedSpeechType =
+  | "linking"
+  | "elision"
+  | "assimilation"
+  | "reduction"
+  | "contraction"
+  | "intrusion";
+
+export interface ConnectedSpeechAnnotation {
+  startIndex: number;
+  endIndex: number;
+  type: ConnectedSpeechType;
+  written: string;
+  spoken: string;
+  explanation: string;
+}
+
+export interface SpeakingPrompt {
+  id: string;
+  topic: string;
+  scenario: string;
+  text: string;
+  annotations: ConnectedSpeechAnnotation[];
+  difficulty: "beginner" | "intermediate" | "advanced";
+}
+
+export interface SpeakingFeedback {
+  overallComment: string;
+  accuracyScore: number;
+  fluencyScore: number;
+  pronunciationNotes: PronunciationNote[];
+}
+
+export interface PronunciationNote {
+  word: string;
+  issue: string;
+  suggestion: string;
+}
+
+export interface SpeakingPracticeResult {
+  promptId: string;
+  targetText: string;
+  userTranscription: string;
+  score: number;
+  feedback: SpeakingFeedback;
+  practicedAt: string;
+}
+
+export interface SpeakingDayData {
+  date: string;
+  prompts: SpeakingPrompt[];
+  results: SpeakingPracticeResult[];
 }
 
 export type TaskType = "reading" | "writing" | "vocabulary" | "speaking" | "listening";

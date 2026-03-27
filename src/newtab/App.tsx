@@ -51,7 +51,7 @@ export function App() {
       case "vocabulary":
         return <Vocabulary record={record!} onUpdate={update} />;
       case "speaking":
-        return <Speaking record={record!} onUpdate={update} />;
+        return null; // Speaking is always mounted below
       case "history":
         return <PracticesHistory />;
       case "summary":
@@ -67,11 +67,14 @@ export function App() {
     <div className="flex h-screen bg-gray-50">
       <Navigation currentPage={page} onNavigate={setPage} />
       <main className="flex-1 overflow-y-auto p-8">
-        {/* Keep Listening mounted to preserve state during generation */}
+        {/* Keep Listening and Speaking mounted to preserve state during generation/recording */}
         <div style={{ display: page === "listening" ? "block" : "none" }}>
           <Listening record={record!} onUpdate={update} visible={page === "listening"} />
         </div>
-        {page !== "listening" && renderPage()}
+        <div style={{ display: page === "speaking" ? "block" : "none" }}>
+          <Speaking record={record!} onUpdate={update} visible={page === "speaking"} />
+        </div>
+        {page !== "listening" && page !== "speaking" && renderPage()}
       </main>
     </div>
   );

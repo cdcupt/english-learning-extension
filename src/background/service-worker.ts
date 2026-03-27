@@ -142,77 +142,121 @@ function getNextMidnight(): number {
   return midnight.getTime();
 }
 
-// Handle ByteDance TTS request from extension pages (CORS bypass)
-// Splits long text into <=800 byte chunks to stay within V1 API limit (1024 bytes)
+// Handle ByteDance TTS 2.0 (豆包语音合成模型2.0) via SSE endpoint
+// Events: 150=SessionStarted, 352=TTSResponse(audio), 350=SentenceStart, 351=SentenceEnd, 152=SessionFinished, 153=SessionFailed
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg.type === "bytedance-tts") {
-    const { appId, token, cluster, voice, text, speed } = msg;
+    const { appId, token, voice, text, speed } = msg;
 
-    function splitText(input: string, maxBytes: number): string[] {
-      const chunks: string[] = [];
-      const sentences = input.split(/(?<=[.!?。！？])\s+/);
-      let current = "";
-      for (const sentence of sentences) {
-        const combined = current ? current + " " + sentence : sentence;
-        if (new TextEncoder().encode(combined).length > maxBytes && current) {
-          chunks.push(current);
-          current = sentence;
-        } else {
-          current = combined;
-        }
-      }
-      if (current) chunks.push(current);
-      return chunks;
-    }
-
-    async function synthesizeChunk(chunkText: string): Promise<string> {
+    async function synthesize(): Promise<string> {
       const reqid = crypto.randomUUID();
+      const speedRate = Math.round((Number(speed || 1) - 1) * 100);
       const payload = {
-        app: { appid: String(appId), token: String(token), cluster: String(cluster || "volcano_tts") },
         user: { uid: "eng_learn_extension" },
-        audio: {
-          voice_type: String(voice || "BV504_streaming"),
-          encoding: "mp3",
-          speed_ratio: Number(speed) || 1.0,
-          volume_ratio: 1.0,
-          pitch_ratio: 1.0,
-        },
-        request: {
-          reqid,
-          text: chunkText,
-          text_type: "plain",
-          operation: "query",
+        req_params: {
+          text: String(text),
+          speaker: String(voice || "en_female_dacey_uranus_bigtts"),
+          audio_params: {
+            format: "mp3",
+            sample_rate: 24000,
+            speech_rate: speedRate,
+          },
         },
       };
-      console.log("[ByteDance TTS] Request:", JSON.stringify({ ...payload, app: { ...payload.app, token: "***" } }));
-      const res = await fetch("https://openspeech.bytedance.com/api/v1/tts", {
+
+      console.log("[TTS] Request: speaker =", payload.req_params.speaker, ", text length =", text.length);
+
+      const res = await fetch("https://openspeech.bytedance.com/api/v3/tts/unidirectional/sse", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer;${token}`,
+          "X-Api-App-Key": String(appId),
+          "X-Api-Access-Key": String(token),
+          "X-Api-Resource-Id": "seed-tts-2.0",
+          "X-Api-Request-Id": reqid,
         },
         body: JSON.stringify(payload),
       });
-      const result = await res.json();
-      console.log("[ByteDance TTS] Response:", result.code, result.message);
-      if (result.code !== 3000) {
-        throw new Error(`${result.code} - ${result.message || "Unknown"}`);
+
+      console.log("[TTS] Status:", res.status, "Content-Type:", res.headers.get("content-type"));
+
+      if (!res.ok) {
+        const errBody = await res.text();
+        throw new Error(`HTTP ${res.status}: ${errBody.substring(0, 200)}`);
       }
-      return result.data;
+
+      // Parse SSE response: "event: <code>\ndata: <json>\n\n"
+      const responseText = await res.text();
+      const audioChunks: string[] = [];
+      let lastError = "";
+
+      const events = responseText.split("\n\n");
+      for (const block of events) {
+        if (!block.trim()) continue;
+        const lines = block.split("\n");
+        let eventCode = "";
+        let dataStr = "";
+        for (const line of lines) {
+          if (line.startsWith("event: ")) eventCode = line.substring(7).trim();
+          if (line.startsWith("data: ")) dataStr = line.substring(6);
+        }
+
+        if (!dataStr) continue;
+
+        try {
+          const data = JSON.parse(dataStr);
+          console.log("[TTS] SSE event:", eventCode, "keys:", Object.keys(data).join(","));
+
+          // Event 352 = TTSResponse (audio data)
+          if (eventCode === "352" && data.data) {
+            audioChunks.push(data.data);
+          }
+
+          // Event 153 = SessionFailed
+          if (eventCode === "153" || data.status_code) {
+            if (data.status_code && data.status_code !== 20000000) {
+              lastError = `${data.status_code}: ${data.message || "Unknown error"}`;
+            }
+          }
+        } catch {
+          console.warn("[TTS] Failed to parse SSE data:", dataStr.substring(0, 100));
+        }
+      }
+
+      if (lastError) {
+        throw new Error(lastError);
+      }
+
+      if (audioChunks.length === 0) {
+        throw new Error("No audio data in response. Raw: " + responseText.substring(0, 200));
+      }
+
+      console.log("[TTS] Collected", audioChunks.length, "audio chunks");
+
+      // audioChunks should be base64 audio data — combine them
+      return audioChunks.join("");
     }
 
-    const chunks = splitText(text, 800);
-    Promise.all(chunks.map(synthesizeChunk))
-      .then((base64Chunks) => {
-        // Concatenate all base64 audio data
-        const combined = base64Chunks.join("");
-        sendResponse({ data: combined });
-      })
+    synthesize()
+      .then((data) => sendResponse({ data }))
       .catch((e) => {
+        console.error("[TTS] Failed:", e);
         sendResponse({ error: `ByteDance TTS error: ${e instanceof Error ? e.message : "Unknown"}` });
       });
 
-    return true; // keep message channel open for async sendResponse
+    return true;
+  }
+});
+
+// ByteDance ASR: The streaming ASR service (豆包流式语音识别模型2.0) only supports
+// WebSocket at wss://openspeech.bytedance.com/api/v3/sauc/bigmodel, which requires
+// custom headers (X-Api-*) during the WebSocket handshake. Browser WebSocket API does
+// not support custom headers, so ByteDance ASR cannot be used from a Chrome extension.
+// The Speaking page falls back to Web Speech API for speech recognition.
+chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+  if (msg.type === "bytedance-asr") {
+    sendResponse({ error: "ByteDance streaming ASR requires WebSocket with custom headers, which browsers cannot do. Using Web Speech API instead." });
+    return true;
   }
 });
 

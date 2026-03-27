@@ -6,6 +6,7 @@ import type {
   WritingEntry,
   WritingIndexItem,
   StreakData,
+  SpeakingDayData,
 } from "./types";
 import { getTodayKey } from "./utils/date";
 
@@ -45,7 +46,7 @@ export function createEmptyDailyRecord(date: string): DailyRecord {
     reading: { completed: false, articlesRead: [], wordsLearned: 0 },
     writing: { completed: false, writingId: null },
     vocabulary: { completed: false, checkedInAt: null },
-    speaking: { completed: false, checkedInAt: null },
+    speaking: { completed: false, checkedInAt: null, practicesCompleted: 0 },
     listening: { completed: false, practicesCompleted: 0 },
   };
 }
@@ -126,6 +127,20 @@ export async function saveWritingEntry(entry: WritingEntry): Promise<void> {
 
 export async function getWritingIndex(): Promise<WritingIndexItem[]> {
   return (await get<WritingIndexItem[]>("writingIndex")) ?? [];
+}
+
+// Speaking Day Data
+export async function getSpeakingDayData(
+  date?: string
+): Promise<SpeakingDayData | undefined> {
+  const key = `speaking:${date ?? getTodayKey()}`;
+  return get<SpeakingDayData>(key);
+}
+
+export async function saveSpeakingDayData(
+  data: SpeakingDayData
+): Promise<void> {
+  await set(`speaking:${data.date}`, data);
 }
 
 // Streak

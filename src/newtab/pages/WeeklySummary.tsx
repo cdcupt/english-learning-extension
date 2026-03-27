@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import type { DailyRecord } from "@/shared/types";
-import { getDailyRecord, getVocabulary, getWritingIndex } from "@/shared/storage";
+import { getDailyRecord, getVocabulary, getWritingIndex, getSpeakingDayData } from "@/shared/storage";
 import { getWeekDates } from "@/shared/utils/scoring";
 
 interface WeekStats {
@@ -11,6 +11,7 @@ interface WeekStats {
   listening: number;
   wordsLearned: number;
   writingScores: number[];
+  speakingScores: number[];
   perfectDays: number;
 }
 
@@ -59,6 +60,16 @@ export function WeeklySummary() {
         perfectDays++;
     }
 
+    // Collect speaking scores
+    const speakingScores: number[] = [];
+    const speakingDays = await Promise.all(dates.map((d) => getSpeakingDayData(d)));
+    for (const sd of speakingDays) {
+      if (!sd) continue;
+      for (const result of sd.results) {
+        speakingScores.push(result.score);
+      }
+    }
+
     const writingIndex = await getWritingIndex();
     for (const item of writingIndex) {
       if (dates.includes(item.date) && item.score !== null) {
@@ -79,6 +90,7 @@ export function WeeklySummary() {
       listening,
       wordsLearned,
       writingScores,
+      speakingScores,
       perfectDays,
     });
     setLoading(false);
@@ -144,7 +156,7 @@ export function WeeklySummary() {
             ))}
           </div>
 
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             <div className="bg-white rounded-xl border border-gray-200 p-5 text-center">
               <div className="text-2xl font-bold text-blue-600">
                 {stats.perfectDays}
@@ -168,6 +180,19 @@ export function WeeklySummary() {
               </div>
               <div className="text-xs text-gray-500 mt-1">
                 Avg Writing Score
+              </div>
+            </div>
+            <div className="bg-white rounded-xl border border-gray-200 p-5 text-center">
+              <div className="text-2xl font-bold text-orange-600">
+                {stats.speakingScores.length > 0
+                  ? Math.round(
+                      stats.speakingScores.reduce((a, b) => a + b, 0) /
+                        stats.speakingScores.length
+                    )
+                  : "—"}
+              </div>
+              <div className="text-xs text-gray-500 mt-1">
+                Avg Speaking Score
               </div>
             </div>
           </div>

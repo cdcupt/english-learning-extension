@@ -4,12 +4,14 @@ import type {
   DailyArticles,
   WritingEntry,
   VocabularyEntry,
+  SpeakingDayData,
 } from "@/shared/types";
 import {
   getDailyRecord,
   getDailyArticles,
   getWritingEntry,
   getVocabulary,
+  getSpeakingDayData,
 } from "@/shared/storage";
 import { getDayKey } from "@/shared/utils/date";
 
@@ -19,6 +21,7 @@ export function PracticesHistory() {
   const [articles, setArticles] = useState<DailyArticles | null>(null);
   const [writing, setWriting] = useState<WritingEntry | null>(null);
   const [dayVocab, setDayVocab] = useState<VocabularyEntry[]>([]);
+  const [speakingData, setSpeakingData] = useState<SpeakingDayData | null>(null);
   const [loading, setLoading] = useState(true);
   const [expandedWriting, setExpandedWriting] = useState(false);
 
@@ -30,15 +33,17 @@ export function PracticesHistory() {
     setLoading(true);
     setExpandedWriting(false);
 
-    const [dayRecord, dayArticles, vocab] = await Promise.all([
+    const [dayRecord, dayArticles, vocab, daySpeaking] = await Promise.all([
       getDailyRecord(date),
       getDailyArticles(date),
       getVocabulary(),
+      getSpeakingDayData(date),
     ]);
 
     setRecord(dayRecord ?? null);
     setArticles(dayArticles ?? null);
     setDayVocab(vocab.filter((v) => v.addedDate === date));
+    setSpeakingData(daySpeaking ?? null);
 
     if (dayRecord?.writing.writingId) {
       const entry = await getWritingEntry(dayRecord.writing.writingId);
@@ -335,14 +340,48 @@ export function PracticesHistory() {
               {record.speaking.completed && (
                 <span className="ml-2 text-xs text-green-600 font-normal">Completed</span>
               )}
+              {record.speaking.averageScore != null && (
+                <span className="ml-2 text-xs text-purple-600 font-normal">
+                  Avg: {record.speaking.averageScore}/100
+                </span>
+              )}
             </h2>
-            {record.speaking.checkedInAt ? (
+            {speakingData && speakingData.results.length > 0 ? (
+              <div className="space-y-3">
+                {speakingData.results.map((result, i) => (
+                  <div key={i} className="bg-gray-50 rounded-lg p-3">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-sm font-medium text-gray-900">
+                        Practice {i + 1}
+                      </span>
+                      <span className={`text-sm font-bold ${
+                        result.score >= 80 ? "text-green-600" : result.score >= 60 ? "text-blue-600" : "text-amber-600"
+                      }`}>
+                        {result.score}/100
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-500 mb-1">
+                      Target: &ldquo;{result.targetText}&rdquo;
+                    </p>
+                    <p className="text-xs text-gray-500 mb-1">
+                      You said: &ldquo;{result.userTranscription}&rdquo;
+                    </p>
+                    <p className="text-xs text-gray-600">
+                      {result.feedback.overallComment}
+                    </p>
+                    <p className="text-xs text-gray-400 mt-1">
+                      {new Date(result.practicedAt).toLocaleTimeString()}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            ) : record.speaking.checkedInAt ? (
               <p className="text-sm text-gray-700">
                 Checked in at{" "}
                 {new Date(record.speaking.checkedInAt).toLocaleTimeString()}
               </p>
             ) : (
-              <p className="text-sm text-gray-400">No speaking check-in.</p>
+              <p className="text-sm text-gray-400">No speaking practice.</p>
             )}
           </div>
           {/* Listening Details */}
