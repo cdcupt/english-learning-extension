@@ -1,195 +1,287 @@
 import { useState, useEffect } from "react";
-import type { DailyRecord, VocabularyEntry } from "@/shared/types";
-import { getVocabulary, saveVocabulary } from "@/shared/storage";
-import { CheckInButton } from "../components/CheckInButton";
+import type { DailyRecord, VocabQuizDayData } from "@/shared/types";
+import { getVocabQuizDayData, saveVocabQuizDayData } from "@/shared/storage";
+import { generateVocabQuiz, type VocabQuizWord } from "@/shared/api/claude";
+import { getTodayKey } from "@/shared/utils/date";
 
 interface Props {
   record: DailyRecord;
   onUpdate: (updater: (r: DailyRecord) => DailyRecord) => Promise<void>;
 }
 
-type Tab = "words" | "quiz" | "checkin";
+type QuizState = "idle" | "generating" | "quiz" | "done";
 
 export function Vocabulary({ record, onUpdate }: Props) {
-  const [tab, setTab] = useState<Tab>("words");
-  const [vocab, setVocab] = useState<VocabularyEntry[]>([]);
-  const [search, setSearch] = useState("");
-  const [quizIndex, setQuizIndex] = useState(0);
-  const [showAnswer, setShowAnswer] = useState(false);
+  const [state, setState] = useState<QuizState>("idle");
+  const [words, setWords] = useState<VocabQuizWord[]>([]);
+  const [answers, setAnswers] = useState<Record<number, number>>({});
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [selectedOption, setSelectedOption] = useState<number | null>(null);
+  const [revealed, setRevealed] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const isTaskDone = record.vocabulary?.completed ?? false;
 
   useEffect(() => {
-    getVocabulary().then(setVocab);
+    // Load saved quiz from today
+    getVocabQuizDayData(getTodayKey()).then((data) => {
+      if (data?.words.length) {
+        setWords(data.words);
+        setAnswers(data.answers);
+        const answeredCount = Object.keys(data.answers).length;
+        if (answeredCount >= data.words.length) {
+          setState("done");
+        } else {
+          setCurrentIndex(answeredCount);
+          setState("quiz");
+        }
+      }
+    });
   }, []);
 
-  const filtered = vocab.filter(
-    (v) =>
-      v.word.toLowerCase().includes(search.toLowerCase()) ||
-      v.explanation.toLowerCase().includes(search.toLowerCase())
-  );
+  async function handleGenerate() {
+    setState("generating");
+    setError(null);
+    try {
+      const quizWords = await generateVocabQuiz(20);
+      setWords(quizWords);
+      setAnswers({});
+      setCurrentIndex(0);
+      setSelectedOption(null);
+      setRevealed(false);
+      setState("quiz");
 
-  const quizWords = vocab.filter((v) => !v.mastered);
-
-  async function handleCheckIn() {
-    await onUpdate((r) => ({
-      ...r,
-      vocabulary: {
-        completed: true,
-        checkedInAt: new Date().toISOString(),
-      },
-    }));
+      // Save to storage
+      const today = getTodayKey();
+      await saveVocabQuizDayData({ date: today, words: quizWords, answers: {} });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to generate vocabulary quiz");
+      setState("idle");
+    }
   }
 
-  async function markMastered(id: string) {
-    const updated = vocab.map((v) =>
-      v.id === id ? { ...v, mastered: true } : v
-    );
-    setVocab(updated);
-    await saveVocabulary(updated);
+  async function handleSelect(optionIndex: number) {
+    if (revealed) return;
+    setSelectedOption(optionIndex);
+    setRevealed(true);
+
+    const newAnswers = { ...answers, [currentIndex]: optionIndex };
+    setAnswers(newAnswers);
+
+    // Save progress
+    const today = getTodayKey();
+    await saveVocabQuizDayData({ date: today, words, answers: newAnswers });
   }
 
-  function nextQuiz() {
-    setShowAnswer(false);
-    setQuizIndex((i) => (i + 1) % Math.max(1, quizWords.length));
+  async function handleNext() {
+    const nextIndex = currentIndex + 1;
+    if (nextIndex >= words.length) {
+      setState("done");
+      // Mark task complete
+      await onUpdate((r) => ({
+        ...r,
+        vocabulary: {
+          completed: true,
+          checkedInAt: new Date().toISOString(),
+        },
+      }));
+    } else {
+      setCurrentIndex(nextIndex);
+      setSelectedOption(null);
+      setRevealed(false);
+    }
   }
 
-  const tabs: { key: Tab; label: string }[] = [
-    { key: "words", label: `Word List (${vocab.length})` },
-    { key: "quiz", label: "Quiz" },
-    { key: "checkin", label: "Check In" },
-  ];
+  const correctCount = Object.entries(answers).filter(
+    ([i, a]) => words[Number(i)]?.correctIndex === a
+  ).length;
+
+  const currentWord = words[currentIndex];
 
   return (
     <div className="max-w-2xl mx-auto">
-      <h1 className="text-2xl font-bold text-gray-900 mb-6">Vocabulary</h1>
-
-      <div className="flex gap-1 mb-6 bg-gray-100 rounded-lg p-1">
-        {tabs.map((t) => (
-          <button
-            key={t.key}
-            onClick={() => setTab(t.key)}
-            className={`flex-1 py-2 px-3 rounded-md text-sm font-medium transition-colors ${
-              tab === t.key
-                ? "bg-white text-gray-900 shadow-sm"
-                : "text-gray-600 hover:text-gray-900"
-            }`}
-          >
-            {t.label}
-          </button>
-        ))}
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-2xl font-bold text-gray-900">Vocabulary</h1>
+        {words.length > 0 && (
+          <span className="text-sm text-gray-500">
+            {Object.keys(answers).length}/{words.length} answered
+          </span>
+        )}
       </div>
 
-      {tab === "words" && (
+      {/* Done state */}
+      {state === "done" && (
         <>
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search words..."
-            className="w-full px-4 py-2 border border-gray-200 rounded-lg mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-          {filtered.length === 0 ? (
-            <p className="text-gray-500 text-center py-8">
-              {vocab.length === 0
-                ? "No words saved yet. Highlight words while reading to add them!"
-                : "No matches found."}
+          <div className="bg-green-50 border border-green-200 rounded-xl p-6 text-center mb-6">
+            <span className="text-green-600 text-xl font-bold">&#10003;</span>
+            <p className="text-green-700 font-medium mt-2">
+              Vocabulary practice completed!
             </p>
-          ) : (
-            <div className="space-y-3">
-              {filtered.map((entry) => (
+            <p className="text-green-600 text-sm mt-1">
+              Score: {correctCount}/{words.length} correct
+            </p>
+            <button
+              onClick={handleGenerate}
+              className="mt-4 px-5 py-2 text-sm font-medium text-green-700 bg-green-100 rounded-lg hover:bg-green-200 transition-colors"
+            >
+              + Practice More
+            </button>
+          </div>
+
+          {/* Review all words */}
+          <div className="space-y-3">
+            <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Review</h2>
+            {words.map((w, i) => {
+              const userAnswer = answers[i];
+              const isCorrect = userAnswer === w.correctIndex;
+              return (
                 <div
-                  key={entry.id}
-                  className={`bg-white rounded-xl border border-gray-200 p-4 ${
-                    entry.mastered ? "opacity-60" : ""
+                  key={i}
+                  className={`bg-white rounded-xl border p-4 ${
+                    isCorrect ? "border-green-200" : "border-red-200"
                   }`}
                 >
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="font-semibold text-gray-900">
-                      {entry.word}
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="font-semibold text-gray-900">{w.word}</span>
+                    <span className={`text-xs font-medium ${isCorrect ? "text-green-600" : "text-red-600"}`}>
+                      {isCorrect ? "Correct" : "Wrong"}
                     </span>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-gray-400">
-                        {entry.addedDate}
-                      </span>
-                      {entry.mastered ? (
-                        <span className="text-xs text-green-600 font-medium">
-                          Mastered
-                        </span>
-                      ) : (
-                        <button
-                          onClick={() => markMastered(entry.id)}
-                          className="text-xs text-blue-600 hover:text-blue-800"
-                        >
-                          Mark mastered
-                        </button>
-                      )}
-                    </div>
                   </div>
-                  <p className="text-sm text-gray-700 whitespace-pre-wrap">
-                    {entry.explanation}
-                  </p>
+                  <p className="text-sm text-gray-700">{w.meaning}</p>
+                  <p className="text-xs text-gray-500 mt-1 italic">{w.exampleSentence}</p>
+                  {!isCorrect && userAnswer !== undefined && (
+                    <p className="text-xs text-red-600 mt-1">
+                      You chose: {w.options[userAnswer]}
+                    </p>
+                  )}
                 </div>
-              ))}
-            </div>
-          )}
+              );
+            })}
+          </div>
         </>
       )}
 
-      {tab === "quiz" && (
-        <div className="text-center">
-          {quizWords.length === 0 ? (
-            <p className="text-gray-500 py-8">
-              No words to quiz. Add some words while reading!
-            </p>
-          ) : (
-            <div className="bg-white rounded-xl border-2 border-gray-200 p-8">
-              <p className="text-sm text-gray-500 mb-4">
-                {quizIndex + 1} / {quizWords.length}
-              </p>
-              <h2 className="text-2xl font-bold text-gray-900 mb-6">
-                {quizWords[quizIndex]?.word}
-              </h2>
-
-              {showAnswer ? (
-                <>
-                  <p className="text-gray-700 whitespace-pre-wrap mb-6 text-left">
-                    {quizWords[quizIndex]?.explanation}
-                  </p>
-                  <div className="flex gap-3 justify-center">
-                    <button
-                      onClick={() =>
-                        markMastered(quizWords[quizIndex]?.id).then(nextQuiz)
-                      }
-                      className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
-                    >
-                      I know this
-                    </button>
-                    <button
-                      onClick={nextQuiz}
-                      className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
-                    >
-                      Next
-                    </button>
-                  </div>
-                </>
-              ) : (
-                <button
-                  onClick={() => setShowAnswer(true)}
-                  className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                >
-                  Show Answer
-                </button>
-              )}
-            </div>
-          )}
+      {/* Idle state */}
+      {state === "idle" && !isTaskDone && (
+        <div className="bg-white rounded-xl border border-gray-200 p-8 text-center">
+          <p className="text-gray-600 mb-2">
+            Daily IELTS vocabulary practice.
+          </p>
+          <p className="text-sm text-gray-400 mb-6">
+            20 words with multiple-choice meanings. Choose the correct definition.
+          </p>
+          <button
+            onClick={handleGenerate}
+            className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+          >
+            Start Practice
+          </button>
+          {error && <p className="text-red-600 text-sm mt-3">{error}</p>}
         </div>
       )}
 
-      {tab === "checkin" && (
-        <CheckInButton
-          completed={record.vocabulary.completed}
-          onCheckIn={handleCheckIn}
-          label="Vocabulary"
-        />
+      {state === "idle" && isTaskDone && (
+        <div className="bg-green-50 border border-green-200 rounded-xl p-6 text-center">
+          <span className="text-green-600 text-xl font-bold">&#10003;</span>
+          <p className="text-green-700 font-medium mt-2">
+            Vocabulary practice completed for today!
+          </p>
+          <button
+            onClick={handleGenerate}
+            className="mt-4 px-5 py-2 text-sm font-medium text-green-700 bg-green-100 rounded-lg hover:bg-green-200 transition-colors"
+          >
+            + Practice More
+          </button>
+        </div>
+      )}
+
+      {/* Generating */}
+      {state === "generating" && (
+        <div className="bg-white rounded-xl border border-gray-200 p-8 text-center">
+          <div className="animate-pulse">
+            <p className="text-gray-500">Generating IELTS vocabulary...</p>
+          </div>
+        </div>
+      )}
+
+      {/* Quiz state */}
+      {state === "quiz" && currentWord && (
+        <div className="space-y-4">
+          {/* Progress bar */}
+          <div className="bg-gray-200 rounded-full h-2">
+            <div
+              className="bg-blue-600 h-2 rounded-full transition-all"
+              style={{ width: `${((currentIndex + (revealed ? 1 : 0)) / words.length) * 100}%` }}
+            />
+          </div>
+          <p className="text-sm text-gray-500 text-center">
+            {currentIndex + 1} / {words.length}
+          </p>
+
+          {/* Word card */}
+          <div className="bg-white rounded-xl border-2 border-gray-200 p-8 text-center">
+            <h2 className="text-3xl font-bold text-gray-900 mb-2">
+              {currentWord.word}
+            </h2>
+            <p className="text-sm text-gray-400 mb-6">Choose the correct meaning</p>
+
+            <div className="space-y-3">
+              {currentWord.options.map((option, oi) => {
+                let style = "border border-gray-200 text-gray-700 hover:border-blue-300 hover:bg-blue-50";
+                if (revealed) {
+                  if (oi === currentWord.correctIndex) {
+                    style = "border-2 border-green-500 bg-green-50 text-green-800";
+                  } else if (selectedOption === oi) {
+                    style = "border-2 border-red-400 bg-red-50 text-red-700";
+                  } else {
+                    style = "border border-gray-200 text-gray-400";
+                  }
+                } else if (selectedOption === oi) {
+                  style = "border-2 border-blue-500 bg-blue-50 text-blue-700";
+                }
+                return (
+                  <button
+                    key={oi}
+                    onClick={() => handleSelect(oi)}
+                    disabled={revealed}
+                    className={`w-full text-left px-4 py-3 rounded-lg text-sm transition-colors ${style}`}
+                  >
+                    {option}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Feedback after answer */}
+            {revealed && (
+              <div className="mt-4 space-y-3">
+                <div className={`p-3 rounded-lg text-sm ${
+                  selectedOption === currentWord.correctIndex
+                    ? "bg-green-50 text-green-700 border border-green-200"
+                    : "bg-red-50 text-red-700 border border-red-200"
+                }`}>
+                  {selectedOption === currentWord.correctIndex
+                    ? "Correct!"
+                    : `Wrong — the correct answer is: ${currentWord.options[currentWord.correctIndex]}`}
+                </div>
+                <p className="text-sm text-gray-600 italic">
+                  {currentWord.exampleSentence}
+                </p>
+                <button
+                  onClick={handleNext}
+                  className="w-full py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+                >
+                  {currentIndex + 1 >= words.length ? "See Results" : "Next Word"}
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Score so far */}
+          <div className="text-center text-sm text-gray-500">
+            {correctCount} correct so far
+          </div>
+        </div>
       )}
     </div>
   );
