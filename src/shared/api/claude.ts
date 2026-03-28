@@ -226,6 +226,101 @@ export interface QuizQuestionResult {
   explanation: string;
 }
 
+export async function generateAIArticle(): Promise<{
+  headline: string;
+  abstract: string;
+  body: string;
+  section: string;
+}> {
+  const topics = [
+    "technology and innovation",
+    "science and discovery",
+    "global affairs",
+    "environment and climate",
+    "health and wellness",
+    "business and economy",
+    "education",
+    "culture and society",
+  ];
+  const topic = topics[Math.floor(Math.random() * topics.length)];
+
+  const system = `You are a news article writer. Generate a short, well-written English news article suitable for English learners.
+
+You MUST respond with valid JSON only, no markdown fences, in this exact format:
+{
+  "headline": "Article headline",
+  "abstract": "A one-sentence summary of the article",
+  "body": "The full article body (3-5 paragraphs, 200-400 words). Use clear, journalistic English.",
+  "section": "Section name like Technology, Science, World, etc."
+}
+
+Write at an intermediate English level. Use varied vocabulary and sentence structures to help learners improve.`;
+
+  const text = await callWithSettings(
+    system,
+    `Write a news article about: ${topic}`
+  );
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new Error("Failed to generate article — AI returned invalid format");
+  }
+}
+
+export interface VocabQuizWord {
+  word: string;
+  meaning: string;
+  options: string[];
+  correctIndex: number;
+  exampleSentence: string;
+}
+
+export async function generateVocabQuiz(count: number = 20): Promise<VocabQuizWord[]> {
+  const system = `You are an IELTS vocabulary tutor. Generate ${count} IELTS-level vocabulary words for practice.
+
+You MUST respond with valid JSON only, no markdown fences. Return an array of objects in this exact format:
+[
+  {
+    "word": "ubiquitous",
+    "meaning": "present, appearing, or found everywhere",
+    "options": ["present everywhere", "extremely rare", "very expensive", "highly dangerous"],
+    "correctIndex": 0,
+    "exampleSentence": "Smartphones have become ubiquitous in modern society."
+  }
+]
+
+Requirements:
+- Each word should have exactly 4 options for its meaning
+- correctIndex (0-3) indicates which option is the correct meaning
+- Mix difficulty levels: some common IELTS words and some challenging ones
+- The wrong options should be plausible but clearly different meanings
+- Include a natural example sentence for each word
+- Cover diverse topics: academic, scientific, social, environmental, etc.
+- Do NOT repeat words from common beginner vocabulary`;
+
+  const text = await callWithSettings(
+    system,
+    `Generate ${count} IELTS vocabulary quiz words. Make them varied and educational.`
+  );
+
+  try {
+    const parsed: VocabQuizWord[] = JSON.parse(text);
+    // Shuffle options so the correct answer isn't always first
+    return parsed.map((w) => {
+      const correctAnswer = w.options[w.correctIndex];
+      const shuffled = [...w.options];
+      for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+      }
+      return { ...w, options: shuffled, correctIndex: shuffled.indexOf(correctAnswer) };
+    });
+  } catch {
+    throw new Error("Failed to generate vocabulary quiz — AI returned invalid format");
+  }
+}
+
 export async function generateReadingQuiz(
   _apiKey: string,
   headline: string,

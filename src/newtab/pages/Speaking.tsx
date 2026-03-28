@@ -351,11 +351,18 @@ export function Speaking({ record, onUpdate, visible }: Props) {
       await saveSpeakingDayData(dayData);
       setDayData({ ...dayData });
 
-      // Update daily record
-      const newCompleted = completedCount + 1;
+      // Update daily record — count unique prompts with results (retries don't add to count)
+      const uniquePromptIds = new Set(dayData.results.map((r) => r.promptId));
+      const newCompleted = uniquePromptIds.size;
       const allDone = newCompleted >= targetCount;
-      const allScores = dayData.results.map((r) => r.score);
-      const avgScore = Math.round(allScores.reduce((a, b) => a + b, 0) / allScores.length);
+      // Average the best score per prompt (retries don't drag down the average)
+      const bestScoreByPrompt = new Map<string, number>();
+      for (const r of dayData.results) {
+        const prev = bestScoreByPrompt.get(r.promptId) ?? 0;
+        if (r.score > prev) bestScoreByPrompt.set(r.promptId, r.score);
+      }
+      const bestScores = [...bestScoreByPrompt.values()];
+      const avgScore = Math.round(bestScores.reduce((a, b) => a + b, 0) / bestScores.length);
 
       await onUpdate((r) => ({
         ...r,
@@ -507,6 +514,19 @@ export function Speaking({ record, onUpdate, visible }: Props) {
                       </div>
                     )}
                   </div>
+                  {lastResult && (
+                    <button
+                      onClick={() => {
+                        setCurrentPrompt(prompt);
+                        setCurrentResult(lastResult);
+                        setError(null);
+                        setState("result");
+                      }}
+                      className="shrink-0 px-3 py-1.5 text-sm font-medium text-gray-600 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+                    >
+                      Review
+                    </button>
+                  )}
                   <button
                     onClick={async () => {
                       setCurrentPrompt(prompt);

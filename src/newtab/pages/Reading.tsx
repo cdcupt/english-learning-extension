@@ -6,6 +6,7 @@ import {
   getSettings,
 } from "@/shared/storage";
 import { fetchArticles } from "@/shared/api/nyt";
+import { generateAIArticle } from "@/shared/api/claude";
 import { getTodayKey } from "@/shared/utils/date";
 import { ArticleReader } from "./ArticleReader";
 
@@ -87,6 +88,7 @@ export function Reading({ record, onUpdate }: Props) {
   }
 
   const [quizDone, setQuizDone] = useState<Set<string>>(new Set());
+  const [generatingExtra, setGeneratingExtra] = useState(false);
 
   async function handleQuizComplete(articleId: string) {
     const next = new Set(quizDone);
@@ -103,6 +105,35 @@ export function Reading({ record, onUpdate }: Props) {
         },
       }));
     }
+  }
+
+  async function handleGenerateExtra() {
+    setGeneratingExtra(true);
+    setError(null);
+    try {
+      const result = await generateAIArticle();
+      const aiArticle: Article = {
+        id: `ai-${crypto.randomUUID()}`,
+        headline: result.headline,
+        abstract: result.abstract,
+        url: "",
+        body: result.body,
+        section: result.section,
+        publishedDate: new Date().toISOString(),
+        readAt: null,
+      };
+      const updated = [...articles, aiArticle];
+      setArticles(updated);
+      const today = getTodayKey();
+      await saveDailyArticles({
+        date: today,
+        articles: updated,
+        fetchedAt: new Date().toISOString(),
+      });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to generate article");
+    }
+    setGeneratingExtra(false);
   }
 
   if (selectedArticle) {
@@ -157,6 +188,8 @@ export function Reading({ record, onUpdate }: Props) {
     );
   }
 
+  const allQuizDone = articles.length > 0 && articles.every((a) => quizDone.has(a.id));
+
   return (
     <div className="max-w-2xl mx-auto">
       <div className="flex items-center justify-between mb-6">
@@ -165,6 +198,28 @@ export function Reading({ record, onUpdate }: Props) {
           {quizDone.size}/{articles.length} completed
         </span>
       </div>
+
+      {allQuizDone && (
+        <div className="bg-green-50 border border-green-200 rounded-xl p-6 text-center mb-6">
+          <span className="text-green-600 text-xl font-bold">&#10003;</span>
+          <p className="text-green-700 font-medium mt-2">
+            All reading practices completed for today!
+          </p>
+          <button
+            onClick={handleGenerateExtra}
+            disabled={generatingExtra}
+            className="mt-4 px-5 py-2 text-sm font-medium text-green-700 bg-green-100 rounded-lg hover:bg-green-200 transition-colors disabled:opacity-50"
+          >
+            {generatingExtra ? "Generating..." : "+ Practice More"}
+          </button>
+        </div>
+      )}
+
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4">
+          <p className="text-sm text-red-700">{error}</p>
+        </div>
+      )}
 
       <div className="space-y-4">
         {articles.map((article) => (
@@ -181,9 +236,16 @@ export function Reading({ record, onUpdate }: Props) {
           >
             <div className="flex items-start justify-between gap-4">
               <div className="flex-1">
-                <span className="text-xs font-medium text-blue-600 uppercase tracking-wide">
-                  {article.section}
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-medium text-blue-600 uppercase tracking-wide">
+                    {article.section}
+                  </span>
+                  {article.id.startsWith("ai-") && (
+                    <span className="px-1.5 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-700">
+                      AI Generated
+                    </span>
+                  )}
+                </div>
                 <h2 className="text-lg font-semibold text-gray-900 mt-1">
                   {article.headline}
                 </h2>
@@ -193,7 +255,7 @@ export function Reading({ record, onUpdate }: Props) {
               </div>
               <div className="flex flex-col items-center gap-1">
                 {quizDone.has(article.id) ? (
-                  <span className="text-green-600 text-xl">✓</span>
+                  <span className="text-green-600 text-xl">&#10003;</span>
                 ) : article.readAt ? (
                   <span className="text-yellow-600 text-xs font-medium">Quiz pending</span>
                 ) : null}

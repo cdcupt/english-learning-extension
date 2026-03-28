@@ -7,6 +7,8 @@ import type {
   WritingIndexItem,
   StreakData,
   SpeakingDayData,
+  ListeningDayData,
+  VocabQuizDayData,
 } from "./types";
 import { getTodayKey } from "./utils/date";
 
@@ -141,6 +143,34 @@ export async function saveSpeakingDayData(
   data: SpeakingDayData
 ): Promise<void> {
   await set(`speaking:${data.date}`, data);
+}
+
+// Vocab Quiz Day Data
+export async function getVocabQuizDayData(
+  date?: string
+): Promise<VocabQuizDayData | undefined> {
+  const key = `vocabquiz:${date ?? getTodayKey()}`;
+  return get<VocabQuizDayData>(key);
+}
+
+export async function saveVocabQuizDayData(
+  data: VocabQuizDayData
+): Promise<void> {
+  await set(`vocabquiz:${data.date}`, data);
+}
+
+// Listening Day Data
+export async function getListeningDayData(
+  date?: string
+): Promise<ListeningDayData | undefined> {
+  const key = `listening:${date ?? getTodayKey()}`;
+  return get<ListeningDayData>(key);
+}
+
+export async function saveListeningDayData(
+  data: ListeningDayData
+): Promise<void> {
+  await set(`listening:${data.date}`, data);
 }
 
 // Streak

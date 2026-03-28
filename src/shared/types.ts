@@ -194,6 +194,34 @@ export interface SpeakingPracticeResult {
   practicedAt: string;
 }
 
+export interface VocabQuizDayData {
+  date: string;
+  words: {
+    word: string;
+    meaning: string;
+    options: string[];
+    correctIndex: number;
+    exampleSentence: string;
+  }[];
+  answers: Record<number, number>; // wordIndex -> selectedOptionIndex
+}
+
+export interface ListeningSessionData {
+  practice: {
+    title: string;
+    scenario: string;
+    passage: string;
+    questions: QuizQuestion[];
+  };
+  answers: Record<number, number>;
+  submitted: boolean;
+}
+
+export interface ListeningDayData {
+  date: string;
+  sessions: ListeningSessionData[];
+}
+
 export interface SpeakingDayData {
   date: string;
   prompts: SpeakingPrompt[];

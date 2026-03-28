@@ -76,7 +76,25 @@ src/
 | `writingIndex` | WritingIndexItem[] |
 | `writing:{ID}` | Full WritingEntry |
 | `speaking:{YYYY-MM-DD}` | SpeakingDayData (prompts + results) |
+| `listening:{YYYY-MM-DD}` | ListeningDayData (sessions with quiz answers) |
+| `vocabquiz:{YYYY-MM-DD}` | VocabQuizDayData (20 IELTS words + answers) |
 | `streak` | StreakData |
+
+## Practice Module Patterns
+
+All 5 practice modules follow a consistent pattern:
+- **List view** as default with "Today's Practices" history
+- **"Review" button** on completed items to recap results/feedback
+- **"Back to list"** navigation from any sub-view
+- **"+ Practice More"** button after daily goal is met
+- **Persistent storage** — progress survives navigation and page reload
+
+### Module-specific notes:
+- **Reading:** 2 NYT articles by default; extra articles are AI-generated (marked with "AI Generated" badge)
+- **Vocabulary:** 20 AI-generated IELTS words with 4-choice quiz; options are shuffled client-side after AI response
+- **Speaking:** Counts unique prompts only (retries don't inflate completion count); averages best score per prompt
+- **Listening:** Sessions persisted to `listening:{date}` storage key; audio URLs are not persisted (regenerated on replay)
+- **Writing:** History loaded from `writingIndex` + individual `writing:{id}` entries
 
 ## Important Notes
 
@@ -85,3 +103,4 @@ src/
 - The `_bigtts` voice types require `seed-tts-2.0` resource ID; V1 `BV*_streaming` voices require `seed-tts-1.0`.
 - AI prompt responses often include markdown fences — always strip them before JSON.parse.
 - Articles older than 30 days are auto-pruned by the service worker alarm.
+- AI-generated vocab quiz options are always shuffled post-generation to avoid correct-answer position bias.

@@ -1,12 +1,13 @@
 import { useState, useEffect, useRef } from "react";
-import type { DailyRecord, QuizQuestion } from "@/shared/types";
+import type { DailyRecord, QuizQuestion, ListeningDayData } from "@/shared/types";
 import {
   generateListeningPractice,
   generateSpeechAudio,
   generateBytedanceSpeechAudio,
   type ListeningPracticeResult,
 } from "@/shared/api/claude";
-import { getSettings } from "@/shared/storage";
+import { getSettings, getListeningDayData, saveListeningDayData } from "@/shared/storage";
+import { getTodayKey } from "@/shared/utils/date";
 
 interface Props {
   record: DailyRecord;
@@ -57,6 +58,12 @@ export function Listening({ record, onUpdate, visible }: Props) {
 
   useEffect(() => {
     loadTtsSettings();
+    // Load saved sessions from storage
+    getListeningDayData(getTodayKey()).then((data) => {
+      if (data?.sessions.length) {
+        setSessions(data.sessions.map((s) => ({ ...s, audioUrl: null })));
+      }
+    });
   }, [visible]);
 
   // Cleanup audio URLs on unmount
@@ -131,13 +138,17 @@ export function Listening({ record, onUpdate, visible }: Props) {
         }
       }
 
-      setSessions((prev) => [
-        ...prev,
-        { practice, audioUrl, answers: {}, submitted: false },
-      ]);
-      setCurrentIndex(sessions.length);
+      const newSession: PracticeSession = { practice, audioUrl, answers: {}, submitted: false };
+      const newSessions = [...sessions, newSession];
+      setSessions(newSessions);
+      setCurrentIndex(newSessions.length - 1);
       setPlayCount(0);
       setState("listen");
+
+      // Save to storage
+      const today = getTodayKey();
+      const dayData: ListeningDayData = { date: today, sessions: newSessions.map(({ audioUrl: _, ...s }) => s) };
+      await saveListeningDayData(dayData);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to generate practice");
       setState("idle");
@@ -224,7 +235,13 @@ export function Listening({ record, onUpdate, visible }: Props) {
     setSessions(updated);
     setState("result");
 
-    const newCompleted = completedCount + 1;
+    // Save to storage
+    const today = getTodayKey();
+    const dayData: ListeningDayData = { date: today, sessions: updated.map(({ audioUrl: _, ...s }) => s) };
+    await saveListeningDayData(dayData);
+
+    // Count unique submitted sessions
+    const newCompleted = updated.filter((s) => s.submitted).length;
     const allDone = newCompleted >= targetCount;
 
     await onUpdate((r) => ({
@@ -265,6 +282,12 @@ export function Listening({ record, onUpdate, visible }: Props) {
           <p className="text-green-700 font-medium mt-2">
             All listening practices completed for today!
           </p>
+          <button
+            onClick={handleGenerate}
+            className="mt-4 px-5 py-2 text-sm font-medium text-green-700 bg-green-100 rounded-lg hover:bg-green-200 transition-colors"
+          >
+            + Practice More
+          </button>
         </div>
       )}
 
@@ -302,6 +325,44 @@ export function Listening({ record, onUpdate, visible }: Props) {
         </div>
       )}
 
+      {/* Practice History */}
+      {state === "idle" && sessions.length > 0 && (
+        <div className="mt-6 space-y-3">
+          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Today's Practices</h2>
+          {sessions.map((s, i) => {
+            const correct = s.submitted
+              ? s.practice.questions.filter((q, qi) => s.answers[qi] === q.correctIndex).length
+              : null;
+            return (
+              <div key={i} className="bg-white rounded-xl border border-gray-200 p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-900">{s.practice.title}</p>
+                    <p className="text-xs text-gray-500 mt-0.5 line-clamp-1">{s.practice.scenario}</p>
+                    {s.submitted && correct !== null && (
+                      <div className="flex items-center gap-2 mt-2 text-xs text-gray-500">
+                        <span>Score: <strong className={correct >= 4 ? "text-green-600" : correct >= 3 ? "text-blue-600" : "text-amber-600"}>{correct}/{s.practice.questions.length}</strong></span>
+                      </div>
+                    )}
+                  </div>
+                  {s.submitted && (
+                    <button
+                      onClick={() => {
+                        setCurrentIndex(i);
+                        setState("result");
+                      }}
+                      className="shrink-0 px-3 py-1.5 text-sm font-medium text-gray-600 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+                    >
+                      Review
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
       {/* Generating */}
       {state === "generating" && (
         <div className="bg-white rounded-xl border border-gray-200 p-8 text-center">
@@ -316,6 +377,17 @@ export function Listening({ record, onUpdate, visible }: Props) {
       {/* Listen state */}
       {state === "listen" && session && (
         <div className="space-y-4">
+          <button
+            onClick={() => {
+              if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; }
+              speechSynthesis.cancel();
+              setIsPlaying(false);
+              setState("idle");
+            }}
+            className="text-sm text-gray-500 hover:text-gray-700 transition-colors"
+          >
+            &larr; Back to list
+          </button>
           <div className="bg-white rounded-xl border border-gray-200 p-6">
             <h2 className="font-semibold text-gray-900 mb-1">
               {session.practice.title}
@@ -403,6 +475,12 @@ export function Listening({ record, onUpdate, visible }: Props) {
       {/* Quiz state */}
       {(state === "quiz" || state === "result") && session && (
         <div className="space-y-4">
+          <button
+            onClick={() => setState("idle")}
+            className="text-sm text-gray-500 hover:text-gray-700 transition-colors"
+          >
+            &larr; Back to list
+          </button>
           <div className="bg-white rounded-xl border border-gray-200 p-5">
             <h2 className="font-semibold text-gray-900 mb-1">
               {session.practice.title}
@@ -493,14 +571,12 @@ export function Listening({ record, onUpdate, visible }: Props) {
                   {session.practice.passage}
                 </p>
               </div>
-              {!isTaskDone && (
-                <button
-                  onClick={handleNext}
-                  className="w-full py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
-                >
-                  Next Practice ({completedCount}/{targetCount})
-                </button>
-              )}
+              <button
+                onClick={handleNext}
+                className="w-full py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+              >
+                {isTaskDone ? "Back to List" : `Next Practice (${completedCount}/${targetCount})`}
+              </button>
             </div>
           )}
         </div>
