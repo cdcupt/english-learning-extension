@@ -191,18 +191,6 @@ export function Settings() {
     }
   }
 
-  async function handleExportRaw() {
-    const data = await chrome.storage.local.get(null);
-    const blob = new Blob([JSON.stringify(data, null, 2)], {
-      type: "application/json",
-    });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `english-tracker-export-${getTodayKey()}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-  }
 
 
   const currentProvider = AI_PROVIDERS[provider];
@@ -607,8 +595,14 @@ export function Settings() {
             >
               Share Config
             </button>
+            <button
+              onClick={() => openModal("export-backup")}
+              className="px-4 py-2 bg-gray-700 text-white rounded-lg text-sm hover:bg-gray-800 transition-colors"
+            >
+              Full Backup
+            </button>
             <label className="px-4 py-2 bg-blue-50 text-blue-700 rounded-lg text-sm font-medium hover:bg-blue-100 transition-colors cursor-pointer">
-              Import Config
+              Import
               <input
                 ref={importFileRef}
                 type="file"
@@ -617,16 +611,10 @@ export function Settings() {
                 onChange={handleImportFileSelect}
               />
             </label>
-            <button
-              onClick={handleExportRaw}
-              className="px-4 py-2 border border-gray-200 rounded-lg text-sm text-gray-700 hover:bg-gray-100 transition-colors"
-            >
-              Full Backup
-            </button>
           </div>
 
           <p className="text-xs text-gray-400">
-            Share exports encrypted settings without API keys. Full Backup includes everything.
+            Share strips API keys for safe distribution. Full Backup includes everything. Both are encrypted.
           </p>
 
           {configMessage && (
