@@ -8,7 +8,7 @@ A Chrome extension for building daily English learning habits with 5 practice ta
 - **Writing** — Practice writing on random topics with AI feedback (grammar, style, score 0-100). Review past writings and feedback from today's history list.
 - **Vocabulary** — Daily IELTS vocabulary quiz: 20 AI-generated words with 4-choice meanings, persistent progress, and full review at the end.
 - **Speaking** — AI-generated passages, HD reference audio via ByteDance TTS 2.0, record yourself and get pronunciation feedback via Web Speech API + AI evaluation (accuracy & fluency scores). Retries don't inflate completion count; scores average from best attempt per prompt.
-- **Listening** — IELTS-style listening practice with HD audio (OpenAI TTS or ByteDance TTS 2.0) and 5-question quizzes. Persistent session history with review capability.
+- **Listening** — IELTS-style listening practice with HD audio (ByteDance TTS 2.0 or OpenAI TTS) and 5-question quizzes. Persistent session history with review capability.
 - **Streak Tracking** — Complete all 5 tasks for a perfect day; track streaks and weekly stats
 - **Side Panel** — Quick task overview and check-in without leaving your current tab
 - **Context Menu** — Select any word on a webpage → right-click → get an AI-powered explanation
@@ -21,7 +21,7 @@ A Chrome extension for building daily English learning habits with 5 practice ta
 - Vite + CRXJS (Chrome extension bundling, Manifest V3)
 - Chrome Storage API
 - Multi-provider AI (Kimi, OpenAI, Claude, DeepSeek, Gemini)
-- ByteDance OpenSpeech TTS 2.0 (SSE endpoint) or OpenAI TTS for HD audio
+- ByteDance OpenSpeech TTS 2.0 (SSE endpoint, recommended) or OpenAI TTS for HD audio
 - Web Speech API for speaking practice speech recognition
 
 ## Setup
@@ -42,9 +42,9 @@ A Chrome extension for building daily English learning habits with 5 practice ta
 5. Open a new tab to see the dashboard, then go to **Settings** to configure:
    - **NYT API Key** — for reading articles ([developer.nytimes.com](https://developer.nytimes.com))
    - **AI Provider & Key** — for content generation, writing review, and word explanations
-   - **TTS Provider** — Choose OpenAI TTS or ByteDance TTS 2.0 for HD audio
-     - *OpenAI:* API key + voice selection (alloy, echo, fable, onyx, nova, shimmer)
+   - **TTS Provider** — Choose ByteDance TTS 2.0 (recommended) or OpenAI TTS for HD audio
      - *ByteDance TTS 2.0:* App ID + Access Token from [Volcengine console](https://console.volcengine.com/speech/app); default voice: `en_female_dacey_uranus_bigtts` (Dacey)
+     - *OpenAI:* API key + voice selection (alloy, echo, fable, onyx, nova, shimmer)
 
 ## Development
 

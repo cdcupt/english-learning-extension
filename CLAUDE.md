@@ -21,7 +21,7 @@ Load in Chrome: `chrome://extensions/` → Developer mode → Load unpacked → 
 - **Build:** Vite + @crxjs/vite-plugin (MV3 Chrome extension bundling)
 - **Storage:** `chrome.storage.local` only (no IndexedDB/localStorage)
 - **AI:** Multi-provider (Kimi, OpenAI, Claude, DeepSeek, Gemini) via `shared/api/claude.ts`
-- **TTS:** ByteDance OpenSpeech TTS 2.0 (SSE endpoint) or OpenAI TTS; falls back to browser SpeechSynthesis
+- **TTS:** ByteDance OpenSpeech TTS 2.0 (SSE endpoint, recommended) or OpenAI TTS; falls back to browser SpeechSynthesis
 - **ASR:** Web Speech API (browser built-in); ByteDance streaming ASR requires WebSocket with custom headers which browsers cannot do
 
 ## Source Structure
