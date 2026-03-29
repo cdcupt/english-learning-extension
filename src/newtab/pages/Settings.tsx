@@ -3,7 +3,7 @@ import type { Settings as SettingsType, AIProvider, TTSVoice, TTSProvider, Byted
 import { getSettings, saveSettings } from "@/shared/storage";
 import { getTodayKey } from "@/shared/utils/date";
 import { AI_PROVIDERS } from "@/shared/api/claude";
-import { encrypt, decrypt } from "@/shared/crypto";
+import { exportConfig, importConfig, mergeSettings, type ConfigMode } from "@/shared/configExport";
 
 const PROVIDER_KEYS = Object.keys(AI_PROVIDERS) as AIProvider[];
 
@@ -26,12 +26,6 @@ export function Settings() {
   const [readingSource, setReadingSource] = useState<ReadingSource>("nyt_mixed");
   const [paused, setPaused] = useState(false);
   const [saved, setSaved] = useState(false);
-  const [sharePassword, setSharePassword] = useState("");
-  const importPassword = sharePassword;
-  const [shareStatus, setShareStatus] = useState<string | null>(null);
-  const [importStatus, setImportStatus] = useState<string | null>(null);
-  const [importFile, setImportFile] = useState<File | null>(null);
-  const importFileRef = useRef<HTMLInputElement>(null);
   const [showNytKey, setShowNytKey] = useState(false);
   const [showAiKey, setShowAiKey] = useState(false);
   const [showTtsKey, setShowTtsKey] = useState(false);
@@ -210,104 +204,6 @@ export function Settings() {
     URL.revokeObjectURL(url);
   }
 
-  // Sensitive keys to strip when sharing
-  const SENSITIVE_KEYS: (keyof SettingsType)[] = [
-    "nytApiKey", "claudeApiKey", "ttsApiKey",
-    "bytedanceToken", "bytedanceAppId",
-  ];
-
-  async function handleShareExport() {
-    if (!sharePassword.trim()) {
-      setShareStatus("Please enter a password.");
-      return;
-    }
-    setShareStatus(null);
-    try {
-      const settings = await getSettings();
-      if (!settings) {
-        setShareStatus("No settings to share.");
-        return;
-      }
-      // Strip sensitive fields
-      const shareable: Record<string, unknown> = { ...settings };
-      for (const key of SENSITIVE_KEYS) {
-        delete shareable[key];
-      }
-      if (shareable.aiProvider && typeof shareable.aiProvider === "object") {
-        shareable.aiProvider = { ...(shareable.aiProvider as Record<string, unknown>), apiKey: "" };
-      }
-      const encrypted = await encrypt(JSON.stringify(shareable), sharePassword.trim());
-      const blob = new Blob([encrypted], { type: "text/plain" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `english-tracker-config-${getTodayKey()}.enc`;
-      a.click();
-      URL.revokeObjectURL(url);
-      setShareStatus("Config exported (tokens stripped).");
-      setSharePassword("");
-    } catch {
-      setShareStatus("Failed to export config.");
-    }
-  }
-
-  async function handleImportFile(file: File) {
-    if (!importPassword.trim()) {
-      setImportStatus("Please enter the password first.");
-      return;
-    }
-    setImportStatus(null);
-    try {
-      const text = await file.text();
-      const decrypted = await decrypt(text.trim(), importPassword.trim());
-      const imported = JSON.parse(decrypted) as Partial<SettingsType>;
-
-      // Apply non-sensitive settings, keep existing tokens
-      const existing = await getSettings();
-      const merged: SettingsType = {
-        ...existing!,
-        ...imported,
-        // Preserve local tokens — imported config has none
-        nytApiKey: existing?.nytApiKey ?? "",
-        claudeApiKey: existing?.claudeApiKey ?? "",
-        ttsApiKey: existing?.ttsApiKey ?? "",
-        bytedanceToken: existing?.bytedanceToken ?? "",
-        bytedanceAppId: existing?.bytedanceAppId ?? "",
-        aiProvider: {
-          provider: imported.aiProvider?.provider ?? existing?.aiProvider?.provider ?? "kimi",
-          model: imported.aiProvider?.model ?? existing?.aiProvider?.model ?? "",
-          apiKey: existing?.aiProvider?.apiKey ?? "",
-        },
-        installedDate: existing?.installedDate ?? getTodayKey(),
-        paused: imported.paused ?? existing?.paused ?? false,
-      };
-
-      await saveSettings(merged);
-
-      // Update local state to reflect imported values
-      if (imported.dailyArticleCount) setArticleCount(imported.dailyArticleCount);
-      if (imported.dailyListeningCount) setListeningCount(imported.dailyListeningCount);
-      if (imported.dailySpeakingCount) setSpeakingCount(imported.dailySpeakingCount);
-      if (imported.readingSource) setReadingSource(imported.readingSource);
-      if (imported.ttsProvider) setTtsProvider(imported.ttsProvider);
-      if (imported.ttsVoice) setTtsVoice(imported.ttsVoice);
-      if (imported.bytedanceCluster) setBytedanceCluster(imported.bytedanceCluster);
-      if (imported.bytedanceVoice) setBytedanceVoice(imported.bytedanceVoice);
-      if (imported.bytedanceAsrCluster) setBytedanceAsrCluster(imported.bytedanceAsrCluster);
-      if (imported.aiProvider?.provider) {
-        setProvider(imported.aiProvider.provider);
-        setModel(imported.aiProvider.model ?? AI_PROVIDERS[imported.aiProvider.provider].defaultModel);
-      }
-      if (imported.paused !== undefined) setPaused(imported.paused);
-
-      setImportStatus("Config imported! Your API keys were preserved.");
-      setSharePassword("");
-    } catch {
-      setImportStatus("Failed to decrypt. Check your password and file.");
-    }
-    setImportFile(null);
-    if (importFileRef.current) importFileRef.current.value = "";
-  }
 
   const currentProvider = AI_PROVIDERS[provider];
 
@@ -704,58 +600,25 @@ export function Settings() {
         <div className="bg-gray-50 rounded-xl p-5 space-y-4">
           <h2 className="font-semibold text-gray-900">Data & Sharing</h2>
 
-          {/* Password field (shared by export & import) */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Password
-            </label>
-            <input
-              type="password"
-              value={sharePassword}
-              onChange={(e) => setSharePassword(e.target.value)}
-              placeholder="Password for encrypt / decrypt"
-              className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-            />
-          </div>
-
-          {/* Import file picker */}
-          <div className="flex items-center gap-2">
-            <label className="px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-sm text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer shrink-0">
-              Choose .enc file
-              <input
-                ref={importFileRef}
-                type="file"
-                accept=".enc"
-                className="hidden"
-                onChange={(e) => {
-                  const file = e.target.files?.[0] ?? null;
-                  setImportFile(file);
-                  setImportStatus(null);
-                }}
-              />
-            </label>
-            <span className="text-sm text-gray-500 truncate">
-              {importFile ? importFile.name : "No file selected"}
-            </span>
-          </div>
-
-          {/* Action buttons */}
           <div className="flex flex-wrap gap-2">
             <button
-              onClick={handleShareExport}
+              onClick={() => openModal("export-share")}
               className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 transition-colors"
             >
               Share Config
             </button>
-            <button
-              onClick={() => { if (importFile) handleImportFile(importFile); }}
-              disabled={!importFile}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-            >
+            <label className="px-4 py-2 bg-blue-50 text-blue-700 rounded-lg text-sm font-medium hover:bg-blue-100 transition-colors cursor-pointer">
               Import Config
-            </button>
+              <input
+                ref={importFileRef}
+                type="file"
+                accept=".elc"
+                className="hidden"
+                onChange={handleImportFileSelect}
+              />
+            </label>
             <button
-              onClick={handleExport}
+              onClick={handleExportRaw}
               className="px-4 py-2 border border-gray-200 rounded-lg text-sm text-gray-700 hover:bg-gray-100 transition-colors"
             >
               Full Backup
@@ -766,11 +629,9 @@ export function Settings() {
             Share exports encrypted settings without API keys. Full Backup includes everything.
           </p>
 
-          {(shareStatus || importStatus) && (
-            <p className={`text-sm ${
-              (shareStatus ?? importStatus ?? "").includes("Failed") ? "text-red-600" : "text-green-600"
-            }`}>
-              {shareStatus || importStatus}
+          {configMessage && (
+            <p className={`text-sm ${configMessage.type === "error" ? "text-red-600" : "text-green-600"}`}>
+              {configMessage.text}
             </p>
           )}
         </div>
