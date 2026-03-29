@@ -3,6 +3,14 @@ import type { DailyRecord } from "@/shared/types";
 import { getDailyRecord, getVocabulary, getWritingIndex, getSpeakingDayData } from "@/shared/storage";
 import { getWeekDates } from "@/shared/utils/scoring";
 
+interface DayCompletion {
+  reading: boolean;
+  writing: boolean;
+  vocabulary: boolean;
+  speaking: boolean;
+  listening: boolean;
+}
+
 interface WeekStats {
   reading: number;
   writing: number;
@@ -13,6 +21,7 @@ interface WeekStats {
   writingScores: number[];
   speakingScores: number[];
   perfectDays: number;
+  daily: DayCompletion[];
 }
 
 export function WeeklySummary() {
@@ -42,21 +51,23 @@ export function WeeklySummary() {
       listening = 0,
       perfectDays = 0;
     const writingScores: number[] = [];
+    const daily: DayCompletion[] = [];
 
     for (const r of records) {
-      if (!r) continue;
-      if (r.reading.completed) reading++;
-      if (r.writing.completed) writing++;
-      if (r.vocabulary.completed) vocabulary++;
-      if (r.speaking.completed) speaking++;
-      if (r.listening?.completed) listening++;
-      if (
-        r.reading.completed &&
-        r.writing.completed &&
-        r.vocabulary.completed &&
-        r.speaking.completed &&
-        (r.listening?.completed ?? false)
-      )
+      const day: DayCompletion = {
+        reading: r?.reading.completed ?? false,
+        writing: r?.writing.completed ?? false,
+        vocabulary: r?.vocabulary.completed ?? false,
+        speaking: r?.speaking.completed ?? false,
+        listening: r?.listening?.completed ?? false,
+      };
+      daily.push(day);
+      if (day.reading) reading++;
+      if (day.writing) writing++;
+      if (day.vocabulary) vocabulary++;
+      if (day.speaking) speaking++;
+      if (day.listening) listening++;
+      if (day.reading && day.writing && day.vocabulary && day.speaking && day.listening)
         perfectDays++;
     }
 
@@ -92,6 +103,7 @@ export function WeeklySummary() {
       writingScores,
       speakingScores,
       perfectDays,
+      daily,
     });
     setLoading(false);
   }
@@ -132,28 +144,84 @@ export function WeeklySummary() {
             <h2 className="font-semibold text-gray-900 mb-4">
               Task Completion
             </h2>
-            {(
-              [
-                { label: "Reading", value: stats.reading, color: "bg-blue-500" },
-                { label: "Writing", value: stats.writing, color: "bg-purple-500" },
-                { label: "Vocabulary", value: stats.vocabulary, color: "bg-green-500" },
-                { label: "Speaking", value: stats.speaking, color: "bg-orange-500" },
-                { label: "Listening", value: stats.listening, color: "bg-teal-500" },
-              ] as const
-            ).map(({ label, value, color }) => (
-              <div key={label} className="mb-3 last:mb-0">
-                <div className="flex justify-between text-sm mb-1">
-                  <span className="text-gray-700">{label}</span>
-                  <span className="text-gray-500">{value}/7 days</span>
+            {(() => {
+              const tasks = [
+                { key: "reading" as const, label: "Reading", color: "#3b82f6", total: stats.reading },
+                { key: "writing" as const, label: "Writing", color: "#a855f7", total: stats.writing },
+                { key: "vocabulary" as const, label: "Vocabulary", color: "#22c55e", total: stats.vocabulary },
+                { key: "speaking" as const, label: "Speaking", color: "#f97316", total: stats.speaking },
+                { key: "listening" as const, label: "Listening", color: "#14b8a6", total: stats.listening },
+              ];
+              const dayLabels = dates.map((d) => {
+                const dt = new Date(d + "T00:00:00");
+                return ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][dt.getDay()];
+              });
+
+              // Chart dimensions
+              const w = 500, h = 180, padL = 28, padR = 12, padT = 12, padB = 24;
+              const chartW = w - padL - padR;
+              const chartH = h - padT - padB;
+
+              // Cumulative completion per task across 7 days
+              const lines = tasks.map((task) => {
+                let cum = 0;
+                return stats.daily.map((day) => {
+                  if (day[task.key]) cum++;
+                  return cum;
+                });
+              });
+              const maxY = 7;
+
+              function x(i: number) { return padL + (i / 6) * chartW; }
+              function y(v: number) { return padT + chartH - (v / maxY) * chartH; }
+
+              return (
+                <div>
+                  <svg viewBox={`0 0 ${w} ${h}`} className="w-full" style={{ maxHeight: 220 }}>
+                    {/* Grid lines */}
+                    {[0, 1, 2, 3, 4, 5, 6, 7].map((v) => (
+                      <g key={v}>
+                        <line x1={padL} x2={w - padR} y1={y(v)} y2={y(v)} stroke="#f3f4f6" strokeWidth={1} />
+                        {v % 2 === 0 && (
+                          <text x={padL - 6} y={y(v) + 4} textAnchor="end" className="fill-gray-400" style={{ fontSize: 10 }}>{v}</text>
+                        )}
+                      </g>
+                    ))}
+                    {/* X-axis labels */}
+                    {dayLabels.map((label, i) => (
+                      <text key={i} x={x(i)} y={h - 4} textAnchor="middle" className="fill-gray-400" style={{ fontSize: 10 }}>{label}</text>
+                    ))}
+                    {/* Lines */}
+                    {lines.map((pts, ti) => (
+                      <polyline
+                        key={tasks[ti].key}
+                        fill="none"
+                        stroke={tasks[ti].color}
+                        strokeWidth={2}
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        points={pts.map((v, i) => `${x(i)},${y(v)}`).join(" ")}
+                      />
+                    ))}
+                    {/* Dots */}
+                    {lines.map((pts, ti) =>
+                      pts.map((v, i) => (
+                        <circle key={`${ti}-${i}`} cx={x(i)} cy={y(v)} r={3} fill={tasks[ti].color} />
+                      ))
+                    )}
+                  </svg>
+                  {/* Legend */}
+                  <div className="flex flex-wrap gap-x-4 gap-y-1 mt-3">
+                    {tasks.map((t) => (
+                      <div key={t.key} className="flex items-center gap-1.5 text-xs text-gray-600">
+                        <span className="inline-block w-3 h-0.5 rounded" style={{ backgroundColor: t.color }} />
+                        {t.label} ({t.total}/7)
+                      </div>
+                    ))}
+                  </div>
                 </div>
-                <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                  <div
-                    className={`h-full ${color} rounded-full transition-all`}
-                    style={{ width: `${(value / 7) * 100}%` }}
-                  />
-                </div>
-              </div>
-            ))}
+              );
+            })()}
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">

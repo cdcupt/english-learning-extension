@@ -21,7 +21,7 @@ Load in Chrome: `chrome://extensions/` → Developer mode → Load unpacked → 
 - **Build:** Vite + @crxjs/vite-plugin (MV3 Chrome extension bundling)
 - **Storage:** `chrome.storage.local` only (no IndexedDB/localStorage)
 - **AI:** Multi-provider (Kimi, OpenAI, Claude, DeepSeek, Gemini) via `shared/api/claude.ts`
-- **TTS:** ByteDance OpenSpeech TTS 2.0 (SSE endpoint) or OpenAI TTS; falls back to browser SpeechSynthesis
+- **TTS:** ByteDance OpenSpeech TTS 2.0 (SSE endpoint, recommended) or OpenAI TTS; falls back to browser SpeechSynthesis
 - **ASR:** Web Speech API (browser built-in); ByteDance streaming ASR requires WebSocket with custom headers which browsers cannot do
 
 ## Source Structure
@@ -43,6 +43,8 @@ src/
 │   ├── crypto.ts                   # AES-256-GCM encrypt/decrypt for config sharing
 │   ├── api/nyt.ts                  # NYT article client
 │   ├── api/claude.ts               # AI client + TTS + ASR wrappers
+│   ├── crypto.ts                   # AES-GCM encryption (Web Crypto API)
+│   ├── configExport.ts             # Config export/import with sensitive field stripping
 │   └── utils/                      # Date, scoring helpers
 └── assets/                         # Extension icons
 ```
@@ -95,6 +97,14 @@ All 4 practice modules follow a consistent pattern:
 - **Write & Speak:** Merged writing + speaking in one page (`Writing.tsx`). Flow: write → AI review with corrected article → read corrected article aloud → pronunciation evaluation. Completes both `writing` and `speaking` fields in DailyRecord. Speaking.tsx is unused but kept in codebase.
 - **Vocabulary:** 20 AI-generated IELTS words with 4-choice quiz; options are shuffled client-side after AI response
 - **Listening:** Sessions persisted to `listening:{date}` storage key; audio URLs are not persisted (regenerated on replay)
+
+## Config Sharing
+
+Settings can be exported/imported via the Settings page with two modes:
+- **Share** — encrypted (AES-256-GCM), sensitive fields (API keys/tokens) stripped. File extension: `.elc`
+- **Backup** — encrypted, all fields included. File extension: `.elc`
+
+Encryption uses Web Crypto API (PBKDF2 → AES-GCM), no external dependencies. Logic lives in `shared/crypto.ts` and `shared/configExport.ts`.
 
 ## Important Notes
 

@@ -12,6 +12,7 @@ A Chrome extension for building daily English learning habits with 4 practice ta
 - **Streak Tracking** — Complete all 4 tasks for a perfect day; track streaks and weekly stats
 - **Side Panel** — Quick task overview and check-in without leaving your current tab
 - **Context Menu** — Select any word on a webpage → right-click → get an AI-powered explanation
+- **Config Sharing** — Export/import settings with AES-256-GCM encryption; "Share" mode strips API keys for safe distribution
 
 ## Tech Stack
 
@@ -20,7 +21,7 @@ A Chrome extension for building daily English learning habits with 4 practice ta
 - Vite + CRXJS (Chrome extension bundling, Manifest V3)
 - Chrome Storage API
 - Multi-provider AI (Kimi, OpenAI, Claude, DeepSeek, Gemini)
-- ByteDance OpenSpeech TTS 2.0 (SSE endpoint) or OpenAI TTS for HD audio
+- ByteDance OpenSpeech TTS 2.0 (SSE endpoint, recommended) or OpenAI TTS for HD audio
 - Web Speech API for speaking practice speech recognition
 
 ## Setup
@@ -41,9 +42,9 @@ A Chrome extension for building daily English learning habits with 4 practice ta
 5. Open a new tab to see the dashboard, then go to **Settings** to configure:
    - **NYT API Key** — for reading articles ([developer.nytimes.com](https://developer.nytimes.com))
    - **AI Provider & Key** — for content generation, writing review, and word explanations
-   - **TTS Provider** — Choose OpenAI TTS or ByteDance TTS 2.0 for HD audio
-     - *OpenAI:* API key + voice selection (alloy, echo, fable, onyx, nova, shimmer)
+   - **TTS Provider** — Choose ByteDance TTS 2.0 (recommended) or OpenAI TTS for HD audio
      - *ByteDance TTS 2.0:* App ID + Access Token from [Volcengine console](https://console.volcengine.com/speech/app); default voice: `en_female_dacey_uranus_bigtts` (Dacey)
+     - *OpenAI:* API key + voice selection (alloy, echo, fable, onyx, nova, shimmer)
 
 ## Development
 

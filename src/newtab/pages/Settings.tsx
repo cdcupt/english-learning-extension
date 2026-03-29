@@ -104,7 +104,100 @@ export function Settings() {
     setTimeout(() => setSaved(false), 2000);
   }
 
-  async function handleExport() {
+  // --- Config sharing state ---
+  const [modalOpen, setModalOpen] = useState(false);
+  const [modalAction, setModalAction] = useState<"export-share" | "export-backup" | "import">("export-share");
+  const [modalPassword, setModalPassword] = useState("");
+  const [modalConfirmPassword, setModalConfirmPassword] = useState("");
+  const [modalError, setModalError] = useState("");
+  const [modalLoading, setModalLoading] = useState(false);
+  const [configMessage, setConfigMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const importFileRef = useRef<HTMLInputElement>(null);
+  const pendingFileRef = useRef<File | null>(null);
+
+  function openModal(action: "export-share" | "export-backup" | "import") {
+    setModalAction(action);
+    setModalPassword("");
+    setModalConfirmPassword("");
+    setModalError("");
+    setModalLoading(false);
+    setModalOpen(true);
+  }
+
+  function closeModal() {
+    setModalOpen(false);
+    setModalPassword("");
+    setModalConfirmPassword("");
+    setModalError("");
+  }
+
+  function showConfigMessage(type: "success" | "error", text: string) {
+    setConfigMessage({ type, text });
+    setTimeout(() => setConfigMessage(null), 3000);
+  }
+
+  function handleImportFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    pendingFileRef.current = file;
+    e.target.value = "";
+    openModal("import");
+  }
+
+  async function handleModalConfirm() {
+    if (modalPassword.length < 4) {
+      setModalError("Password must be at least 4 characters");
+      return;
+    }
+    if (modalAction !== "import" && modalPassword !== modalConfirmPassword) {
+      setModalError("Passwords do not match");
+      return;
+    }
+
+    setModalLoading(true);
+    setModalError("");
+
+    try {
+      if (modalAction === "export-share" || modalAction === "export-backup") {
+        const mode: ConfigMode = modalAction === "export-share" ? "share" : "backup";
+        const blob = await exportConfig(mode, modalPassword);
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `english-tracker-${mode}-${getTodayKey()}.elc`;
+        a.click();
+        URL.revokeObjectURL(url);
+        closeModal();
+        showConfigMessage("success", `Config exported for ${mode}`);
+      } else {
+        const file = pendingFileRef.current;
+        if (!file) {
+          setModalError("No file selected");
+          setModalLoading(false);
+          return;
+        }
+        const { settings: imported, mode } = await importConfig(file, modalPassword);
+        const existing = await getSettings();
+        if (!existing) {
+          setModalError("No existing settings found — save settings first");
+          setModalLoading(false);
+          return;
+        }
+        const merged = mergeSettings(existing, imported, mode);
+        await saveSettings(merged);
+        pendingFileRef.current = null;
+        closeModal();
+        showConfigMessage("success", `Config imported (${mode} mode) — reload to see changes`);
+        // Reload form state
+        window.location.reload();
+      }
+    } catch (err) {
+      setModalError(err instanceof Error ? err.message : "Operation failed");
+      setModalLoading(false);
+    }
+  }
+
+  async function handleExportRaw() {
     const data = await chrome.storage.local.get(null);
     const blob = new Blob([JSON.stringify(data, null, 2)], {
       type: "application/json",
@@ -682,6 +775,67 @@ export function Settings() {
           )}
         </div>
       </div>
+
+      {/* Password Modal */}
+      {modalOpen && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl p-6 w-full max-w-sm mx-4 space-y-4">
+            <h3 className="font-semibold text-gray-900">
+              {modalAction === "import" ? "Enter password to decrypt" : "Set a password to encrypt"}
+            </h3>
+            <p className="text-sm text-gray-500">
+              {modalAction === "import"
+                ? "Enter the password that was used when this config was exported."
+                : "You'll need this password to import the config later."}
+            </p>
+
+            <div>
+              <input
+                type="password"
+                value={modalPassword}
+                onChange={(e) => setModalPassword(e.target.value)}
+                placeholder="Password"
+                className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                autoFocus
+                onKeyDown={(e) => e.key === "Enter" && handleModalConfirm()}
+              />
+            </div>
+
+            {modalAction !== "import" && (
+              <div>
+                <input
+                  type="password"
+                  value={modalConfirmPassword}
+                  onChange={(e) => setModalConfirmPassword(e.target.value)}
+                  placeholder="Confirm password"
+                  className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  onKeyDown={(e) => e.key === "Enter" && handleModalConfirm()}
+                />
+              </div>
+            )}
+
+            {modalError && (
+              <p className="text-sm text-red-600">{modalError}</p>
+            )}
+
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={closeModal}
+                className="px-4 py-2 border border-gray-200 rounded-lg text-sm text-gray-700 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleModalConfirm}
+                disabled={modalLoading}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 disabled:opacity-50"
+              >
+                {modalLoading ? "Processing..." : modalAction === "import" ? "Import" : "Export"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
