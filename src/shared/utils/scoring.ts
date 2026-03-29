@@ -14,9 +14,8 @@ export function isDayComplete(record: DailyRecord): boolean {
 export function completedTaskCount(record: DailyRecord): number {
   let count = 0;
   if (record.reading.completed) count++;
-  if (record.writing.completed) count++;
+  if (record.writing.completed && record.speaking.completed) count++;
   if (record.vocabulary.completed) count++;
-  if (record.speaking.completed) count++;
   if (record.listening?.completed) count++;
   return count;
 }

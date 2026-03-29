@@ -81,7 +81,7 @@ export function Popup() {
         <>
           <div className="text-center mb-4">
             <span className="text-2xl font-bold text-blue-600">
-              {completed}/5
+              {completed}/4
             </span>
             <p className="text-gray-500 text-xs mt-1">tasks completed today</p>
           </div>
@@ -91,9 +91,8 @@ export function Popup() {
               {(
                 [
                   { label: "Reading", done: record.reading.completed },
-                  { label: "Writing", done: record.writing.completed },
+                  { label: "Write & Speak", done: record.writing.completed && record.speaking.completed },
                   { label: "Vocabulary", done: record.vocabulary.completed },
-                  { label: "Speaking", done: record.speaking.completed },
                   { label: "Listening", done: record.listening?.completed ?? false },
                 ] as const
               ).map(({ label, done }) => (

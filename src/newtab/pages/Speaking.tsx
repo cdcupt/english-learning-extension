@@ -25,6 +25,8 @@ interface Props {
   record: DailyRecord;
   onUpdate: (updater: (r: DailyRecord) => DailyRecord) => Promise<void>;
   visible?: boolean;
+  externalPrompt?: { text: string; topic: string } | null;
+  onExternalPromptConsumed?: () => void;
 }
 
 type SpeakingState =
@@ -44,7 +46,7 @@ const ANNOTATION_COLORS: Record<ConnectedSpeechType, { bg: string; text: string;
   intrusion: { bg: "bg-teal-50 border-teal-200", text: "text-teal-700", label: "Intrusion" },
 };
 
-export function Speaking({ record, onUpdate, visible }: Props) {
+export function Speaking({ record, onUpdate, visible, externalPrompt, onExternalPromptConsumed }: Props) {
   const [state, setState] = useState<SpeakingState>("idle");
   const [targetCount, setTargetCount] = useState(2);
   const [currentPrompt, setCurrentPrompt] = useState<SpeakingPrompt | null>(null);
@@ -76,6 +78,38 @@ export function Speaking({ record, onUpdate, visible }: Props) {
     });
     getSpeakingDayData(getTodayKey()).then((d) => setDayData(d ?? null));
   }, [visible]);
+
+  // Handle external prompt from Writing (corrected article speaking practice)
+  useEffect(() => {
+    if (!externalPrompt || !visible) return;
+
+    async function loadExternalPrompt() {
+      const prompt: SpeakingPrompt = {
+        id: crypto.randomUUID(),
+        topic: externalPrompt!.topic,
+        scenario: "Read your corrected article aloud to practice pronunciation and fluency.",
+        text: externalPrompt!.text,
+        annotations: [],
+        difficulty: "intermediate",
+      };
+      setCurrentPrompt(prompt);
+      setCurrentResult(null);
+      setError(null);
+
+      // Save prompt to day data
+      const today = getTodayKey();
+      const data = (await getSpeakingDayData(today)) ?? { date: today, prompts: [], results: [] };
+      data.prompts.push(prompt);
+      await saveSpeakingDayData(data);
+      setDayData({ ...data });
+
+      await generateReferenceAudio(prompt.text);
+      setState("practice");
+      onExternalPromptConsumed?.();
+    }
+
+    loadExternalPrompt();
+  }, [externalPrompt, visible]);
 
   // Cleanup audio URLs on unmount
   useEffect(() => {

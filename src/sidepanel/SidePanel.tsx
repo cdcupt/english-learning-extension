@@ -49,7 +49,7 @@ export function SidePanel() {
     setStreakCount(streak.current);
   }
 
-  async function checkIn(task: "vocabulary" | "speaking") {
+  async function checkIn(task: "vocabulary") {
     if (!record) return;
     const updated = {
       ...record,
@@ -77,9 +77,8 @@ export function SidePanel() {
 
   const tasks = [
     { key: "reading" as const, label: "Reading", done: record.reading.completed },
-    { key: "writing" as const, label: "Writing", done: record.writing.completed },
+    { key: "writing" as const, label: "Write & Speak", done: record.writing.completed && record.speaking.completed },
     { key: "vocabulary" as const, label: "Vocabulary", done: record.vocabulary.completed },
-    { key: "speaking" as const, label: "Speaking", done: record.speaking.completed },
     { key: "listening" as const, label: "Listening", done: record.listening?.completed ?? false },
   ];
 
@@ -132,7 +131,7 @@ export function SidePanel() {
             >
               {t.done ? "✓" : "○"} {t.label}
             </span>
-            {!t.done && (t.key === "vocabulary" || t.key === "speaking") && (
+            {!t.done && t.key === "vocabulary" && (
               <button
                 onClick={() => checkIn(t.key)}
                 className="text-xs px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700"

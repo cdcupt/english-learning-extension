@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef } from "react";
-import type { Settings as SettingsType, AIProvider, TTSVoice, TTSProvider, BytedanceVoice } from "@/shared/types";
+import type { Settings as SettingsType, AIProvider, TTSVoice, TTSProvider, BytedanceVoice, ReadingSource } from "@/shared/types";
 import { getSettings, saveSettings } from "@/shared/storage";
 import { getTodayKey } from "@/shared/utils/date";
 import { AI_PROVIDERS } from "@/shared/api/claude";
-import { exportConfig, importConfig, mergeSettings, type ConfigMode } from "@/shared/configExport";
+import { encrypt, decrypt } from "@/shared/crypto";
 
 const PROVIDER_KEYS = Object.keys(AI_PROVIDERS) as AIProvider[];
 
@@ -23,8 +23,15 @@ export function Settings() {
   const [bytedanceVoice, setBytedanceVoice] = useState<BytedanceVoice>("en_female_dacey_uranus_bigtts");
   const [bytedanceAsrCluster, setBytedanceAsrCluster] = useState("volc.seedasr.sauc.duration");
   const [speakingCount, setSpeakingCount] = useState<1 | 2 | 3 | 4 | 5>(2);
+  const [readingSource, setReadingSource] = useState<ReadingSource>("nyt_mixed");
   const [paused, setPaused] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [sharePassword, setSharePassword] = useState("");
+  const importPassword = sharePassword;
+  const [shareStatus, setShareStatus] = useState<string | null>(null);
+  const [importStatus, setImportStatus] = useState<string | null>(null);
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const importFileRef = useRef<HTMLInputElement>(null);
   const [showNytKey, setShowNytKey] = useState(false);
   const [showAiKey, setShowAiKey] = useState(false);
   const [showTtsKey, setShowTtsKey] = useState(false);
@@ -47,6 +54,7 @@ export function Settings() {
         setBytedanceVoice(validVoices.includes(savedVoice) ? savedVoice as BytedanceVoice : "en_female_dacey_uranus_bigtts");
         setBytedanceAsrCluster(s.bytedanceAsrCluster ?? "volc.seedasr.sauc.duration");
         setSpeakingCount(s.dailySpeakingCount ?? 2);
+        setReadingSource(s.readingSource ?? "nyt_mixed");
         setPaused(s.paused ?? false);
         if (s.aiProvider) {
           setProvider(s.aiProvider.provider);
@@ -88,6 +96,7 @@ export function Settings() {
       dailyArticleCount: articleCount,
       dailyListeningCount: listeningCount,
       dailySpeakingCount: speakingCount,
+      readingSource,
       installedDate: existing?.installedDate ?? getTodayKey(),
       paused,
     });
@@ -199,6 +208,105 @@ export function Settings() {
     a.download = `english-tracker-export-${getTodayKey()}.json`;
     a.click();
     URL.revokeObjectURL(url);
+  }
+
+  // Sensitive keys to strip when sharing
+  const SENSITIVE_KEYS: (keyof SettingsType)[] = [
+    "nytApiKey", "claudeApiKey", "ttsApiKey",
+    "bytedanceToken", "bytedanceAppId",
+  ];
+
+  async function handleShareExport() {
+    if (!sharePassword.trim()) {
+      setShareStatus("Please enter a password.");
+      return;
+    }
+    setShareStatus(null);
+    try {
+      const settings = await getSettings();
+      if (!settings) {
+        setShareStatus("No settings to share.");
+        return;
+      }
+      // Strip sensitive fields
+      const shareable: Record<string, unknown> = { ...settings };
+      for (const key of SENSITIVE_KEYS) {
+        delete shareable[key];
+      }
+      if (shareable.aiProvider && typeof shareable.aiProvider === "object") {
+        shareable.aiProvider = { ...(shareable.aiProvider as Record<string, unknown>), apiKey: "" };
+      }
+      const encrypted = await encrypt(JSON.stringify(shareable), sharePassword.trim());
+      const blob = new Blob([encrypted], { type: "text/plain" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `english-tracker-config-${getTodayKey()}.enc`;
+      a.click();
+      URL.revokeObjectURL(url);
+      setShareStatus("Config exported (tokens stripped).");
+      setSharePassword("");
+    } catch {
+      setShareStatus("Failed to export config.");
+    }
+  }
+
+  async function handleImportFile(file: File) {
+    if (!importPassword.trim()) {
+      setImportStatus("Please enter the password first.");
+      return;
+    }
+    setImportStatus(null);
+    try {
+      const text = await file.text();
+      const decrypted = await decrypt(text.trim(), importPassword.trim());
+      const imported = JSON.parse(decrypted) as Partial<SettingsType>;
+
+      // Apply non-sensitive settings, keep existing tokens
+      const existing = await getSettings();
+      const merged: SettingsType = {
+        ...existing!,
+        ...imported,
+        // Preserve local tokens — imported config has none
+        nytApiKey: existing?.nytApiKey ?? "",
+        claudeApiKey: existing?.claudeApiKey ?? "",
+        ttsApiKey: existing?.ttsApiKey ?? "",
+        bytedanceToken: existing?.bytedanceToken ?? "",
+        bytedanceAppId: existing?.bytedanceAppId ?? "",
+        aiProvider: {
+          provider: imported.aiProvider?.provider ?? existing?.aiProvider?.provider ?? "kimi",
+          model: imported.aiProvider?.model ?? existing?.aiProvider?.model ?? "",
+          apiKey: existing?.aiProvider?.apiKey ?? "",
+        },
+        installedDate: existing?.installedDate ?? getTodayKey(),
+        paused: imported.paused ?? existing?.paused ?? false,
+      };
+
+      await saveSettings(merged);
+
+      // Update local state to reflect imported values
+      if (imported.dailyArticleCount) setArticleCount(imported.dailyArticleCount);
+      if (imported.dailyListeningCount) setListeningCount(imported.dailyListeningCount);
+      if (imported.dailySpeakingCount) setSpeakingCount(imported.dailySpeakingCount);
+      if (imported.readingSource) setReadingSource(imported.readingSource);
+      if (imported.ttsProvider) setTtsProvider(imported.ttsProvider);
+      if (imported.ttsVoice) setTtsVoice(imported.ttsVoice);
+      if (imported.bytedanceCluster) setBytedanceCluster(imported.bytedanceCluster);
+      if (imported.bytedanceVoice) setBytedanceVoice(imported.bytedanceVoice);
+      if (imported.bytedanceAsrCluster) setBytedanceAsrCluster(imported.bytedanceAsrCluster);
+      if (imported.aiProvider?.provider) {
+        setProvider(imported.aiProvider.provider);
+        setModel(imported.aiProvider.model ?? AI_PROVIDERS[imported.aiProvider.provider].defaultModel);
+      }
+      if (imported.paused !== undefined) setPaused(imported.paused);
+
+      setImportStatus("Config imported! Your API keys were preserved.");
+      setSharePassword("");
+    } catch {
+      setImportStatus("Failed to decrypt. Check your password and file.");
+    }
+    setImportFile(null);
+    if (importFileRef.current) importFileRef.current.value = "";
   }
 
   const currentProvider = AI_PROVIDERS[provider];
@@ -493,6 +601,36 @@ export function Settings() {
           )}
         </div>
 
+        {/* Reading Source */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Reading Source
+          </label>
+          <div className="grid grid-cols-2 gap-2">
+            {([
+              { key: "nyt_mixed" as ReadingSource, label: "NYT + AI" },
+              { key: "ai_only" as ReadingSource, label: "AI Only" },
+            ]).map(({ key, label }) => (
+              <button
+                key={key}
+                onClick={() => setReadingSource(key)}
+                className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors text-left ${
+                  readingSource === key
+                    ? "bg-blue-600 text-white"
+                    : "bg-white border border-gray-200 text-gray-700 hover:border-blue-300"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <p className="text-xs text-gray-400 mt-1">
+            {readingSource === "nyt_mixed"
+              ? "Real NYT articles with optional AI-generated extras"
+              : "All articles are AI-generated (no NYT API key needed)"}
+          </p>
+        </div>
+
         {/* Daily Articles */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -562,66 +700,79 @@ export function Settings() {
 
         <hr className="border-gray-200" />
 
-        {/* Config Sharing */}
+        {/* Data & Sharing */}
         <div className="bg-gray-50 rounded-xl p-5 space-y-4">
-          <h2 className="font-semibold text-gray-900">Config Sharing</h2>
+          <h2 className="font-semibold text-gray-900">Data & Sharing</h2>
 
-          {configMessage && (
-            <p className={`text-sm ${configMessage.type === "success" ? "text-green-600" : "text-red-600"}`}>
-              {configMessage.text}
-            </p>
-          )}
-
-          {/* Share Config */}
+          {/* Password field (shared by export & import) */}
           <div>
-            <p className="text-sm text-gray-500 mb-2">
-              Export settings without API keys for sharing with others.
-            </p>
-            <div className="flex gap-2">
-              <button
-                onClick={() => openModal("export-share")}
-                className="px-4 py-2 border border-gray-200 rounded-lg text-sm text-gray-700 hover:bg-gray-50"
-              >
-                Export for Sharing
-              </button>
-              <button
-                onClick={() => importFileRef.current?.click()}
-                className="px-4 py-2 border border-gray-200 rounded-lg text-sm text-gray-700 hover:bg-gray-50"
-              >
-                Import Config
-              </button>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Password
+            </label>
+            <input
+              type="password"
+              value={sharePassword}
+              onChange={(e) => setSharePassword(e.target.value)}
+              placeholder="Password for encrypt / decrypt"
+              className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+            />
+          </div>
+
+          {/* Import file picker */}
+          <div className="flex items-center gap-2">
+            <label className="px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-sm text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer shrink-0">
+              Choose .enc file
               <input
                 ref={importFileRef}
                 type="file"
-                accept=".elc"
-                onChange={handleImportFileSelect}
+                accept=".enc"
                 className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0] ?? null;
+                  setImportFile(file);
+                  setImportStatus(null);
+                }}
               />
-            </div>
+            </label>
+            <span className="text-sm text-gray-500 truncate">
+              {importFile ? importFile.name : "No file selected"}
+            </span>
           </div>
 
-          {/* Backup Config */}
-          <div>
-            <p className="text-sm text-gray-500 mb-2">
-              Full backup including API keys (for personal use only).
+          {/* Action buttons */}
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={handleShareExport}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 transition-colors"
+            >
+              Share Config
+            </button>
+            <button
+              onClick={() => { if (importFile) handleImportFile(importFile); }}
+              disabled={!importFile}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              Import Config
+            </button>
+            <button
+              onClick={handleExport}
+              className="px-4 py-2 border border-gray-200 rounded-lg text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+            >
+              Full Backup
+            </button>
+          </div>
+
+          <p className="text-xs text-gray-400">
+            Share exports encrypted settings without API keys. Full Backup includes everything.
+          </p>
+
+          {(shareStatus || importStatus) && (
+            <p className={`text-sm ${
+              (shareStatus ?? importStatus ?? "").includes("Failed") ? "text-red-600" : "text-green-600"
+            }`}>
+              {shareStatus || importStatus}
             </p>
-            <button
-              onClick={() => openModal("export-backup")}
-              className="px-4 py-2 border border-gray-200 rounded-lg text-sm text-gray-700 hover:bg-gray-50"
-            >
-              Export Backup
-            </button>
-          </div>
-
-          {/* Raw export */}
-          <div className="pt-2 border-t border-gray-200">
-            <button
-              onClick={handleExportRaw}
-              className="text-xs text-gray-400 hover:text-gray-600 underline"
-            >
-              Export raw data (unencrypted JSON)
-            </button>
-          </div>
+          )}
         </div>
       </div>
 

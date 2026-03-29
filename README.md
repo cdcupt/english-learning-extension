@@ -1,15 +1,15 @@
 # English Learning Tracker
 
-A Chrome extension for building daily English learning habits with 5 practice tasks: Reading, Writing, Vocabulary, Speaking, and Listening.
+A Chrome extension for building daily English learning habits with 4 practice tasks: Reading, Write & Speak, Vocabulary, and Listening.
 
 ## Features
 
-- **Reading** — Read NYT articles and take AI-generated comprehension quizzes. After completing all articles, generate extra AI-written articles for more practice.
-- **Writing** — Practice writing on random topics with AI feedback (grammar, style, score 0-100). Review past writings and feedback from today's history list.
+- **Reading** — Read NYT articles or pure AI-generated articles (configurable via "Reading Source" toggle in Settings), take comprehension quizzes, and generate extra articles for more practice.
+- **Write & Speak** — Unified writing + speaking practice: write about a topic, get AI feedback with a corrected article, then read it aloud for pronunciation evaluation. Completes both writing and speaking tasks in one flow.
 - **Vocabulary** — Daily IELTS vocabulary quiz: 20 AI-generated words with 4-choice meanings, persistent progress, and full review at the end.
-- **Speaking** — AI-generated passages, HD reference audio via ByteDance TTS 2.0, record yourself and get pronunciation feedback via Web Speech API + AI evaluation (accuracy & fluency scores). Retries don't inflate completion count; scores average from best attempt per prompt.
-- **Listening** — IELTS-style listening practice with HD audio (ByteDance TTS 2.0 or OpenAI TTS) and 5-question quizzes. Persistent session history with review capability.
-- **Streak Tracking** — Complete all 5 tasks for a perfect day; track streaks and weekly stats
+- **Listening** — IELTS-style listening practice with HD audio (OpenAI TTS or ByteDance TTS 2.0) and 5-question quizzes. Persistent session history with review capability.
+- **Config Sharing** — Share your settings (encrypted, without API keys) with others via password-protected `.enc` files. Import shared configs without overwriting your own API keys.
+- **Streak Tracking** — Complete all 4 tasks for a perfect day; track streaks and weekly stats
 - **Side Panel** — Quick task overview and check-in without leaving your current tab
 - **Context Menu** — Select any word on a webpage → right-click → get an AI-powered explanation
 - **Config Sharing** — Export/import settings with AES-256-GCM encryption; "Share" mode strips API keys for safe distribution
