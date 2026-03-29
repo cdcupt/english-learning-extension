@@ -12,6 +12,7 @@ A Chrome extension for building daily English learning habits with 5 practice ta
 - **Streak Tracking** — Complete all 5 tasks for a perfect day; track streaks and weekly stats
 - **Side Panel** — Quick task overview and check-in without leaving your current tab
 - **Context Menu** — Select any word on a webpage → right-click → get an AI-powered explanation
+- **Config Sharing** — Export/import settings with AES-256-GCM encryption; "Share" mode strips API keys for safe distribution
 
 ## Tech Stack
 
