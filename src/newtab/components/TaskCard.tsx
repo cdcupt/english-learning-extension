@@ -17,7 +17,7 @@ const TASK_CONFIG: Record<
     color: "blue",
   },
   writing: {
-    label: "Writing",
+    label: "Write & Speak",
     icon: "✍️",
     page: "writing",
     color: "purple",

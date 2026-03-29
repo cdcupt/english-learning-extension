@@ -7,7 +7,6 @@ import { Dashboard } from "./pages/Dashboard";
 import { Reading } from "./pages/Reading";
 import { Writing } from "./pages/Writing";
 import { Vocabulary } from "./pages/Vocabulary";
-import { Speaking } from "./pages/Speaking";
 import { Listening } from "./pages/Listening";
 import { PracticesHistory } from "./pages/PracticesHistory";
 import { WeeklySummary } from "./pages/WeeklySummary";
@@ -50,8 +49,6 @@ export function App() {
         return <Writing record={record!} onUpdate={update} />;
       case "vocabulary":
         return <Vocabulary record={record!} onUpdate={update} />;
-      case "speaking":
-        return null; // Speaking is always mounted below
       case "history":
         return <PracticesHistory />;
       case "summary":
@@ -67,14 +64,11 @@ export function App() {
     <div className="flex h-screen bg-gray-50">
       <Navigation currentPage={page} onNavigate={setPage} />
       <main className="flex-1 overflow-y-auto p-8">
-        {/* Keep Listening and Speaking mounted to preserve state during generation/recording */}
+        {/* Keep Listening mounted to preserve state during generation/playback */}
         <div style={{ display: page === "listening" ? "block" : "none" }}>
           <Listening record={record!} onUpdate={update} visible={page === "listening"} />
         </div>
-        <div style={{ display: page === "speaking" ? "block" : "none" }}>
-          <Speaking record={record!} onUpdate={update} visible={page === "speaking"} />
-        </div>
-        {page !== "listening" && page !== "speaking" && renderPage()}
+        {page !== "listening" && renderPage()}
       </main>
     </div>
   );

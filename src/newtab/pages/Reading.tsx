@@ -38,25 +38,49 @@ export function Reading({ record, onUpdate }: Props) {
       }
 
       const settings = await getSettings();
-      console.log("[Reading] Settings loaded:", { hasNytKey: !!settings?.nytApiKey, articleCount: settings?.dailyArticleCount });
-      if (!settings?.nytApiKey) {
-        setError("Please set your NYT API key in Settings first.");
-        setLoading(false);
-        return;
-      }
+      const source = settings?.readingSource ?? "nyt_mixed";
+      const count = settings?.dailyArticleCount ?? 2;
 
-      console.log("[Reading] Fetching articles...");
-      const fetched = await fetchArticles(
-        settings.nytApiKey,
-        settings.dailyArticleCount
-      );
-      console.log("[Reading] Fetched articles:", fetched.length);
-      await saveDailyArticles({
-        date: today,
-        articles: fetched,
-        fetchedAt: new Date().toISOString(),
-      });
-      setArticles(fetched);
+      if (source === "ai_only") {
+        console.log("[Reading] Generating AI articles...", { count });
+        const generated: Article[] = [];
+        for (let i = 0; i < count; i++) {
+          const result = await generateAIArticle();
+          generated.push({
+            id: `ai-${crypto.randomUUID()}`,
+            headline: result.headline,
+            abstract: result.abstract,
+            url: "",
+            body: result.body,
+            section: result.section,
+            publishedDate: new Date().toISOString(),
+            readAt: null,
+          });
+        }
+        await saveDailyArticles({
+          date: today,
+          articles: generated,
+          fetchedAt: new Date().toISOString(),
+        });
+        setArticles(generated);
+      } else {
+        console.log("[Reading] Settings loaded:", { hasNytKey: !!settings?.nytApiKey, articleCount: count });
+        if (!settings?.nytApiKey) {
+          setError("Please set your NYT API key in Settings first.");
+          setLoading(false);
+          return;
+        }
+
+        console.log("[Reading] Fetching articles...");
+        const fetched = await fetchArticles(settings.nytApiKey, count);
+        console.log("[Reading] Fetched articles:", fetched.length);
+        await saveDailyArticles({
+          date: today,
+          articles: fetched,
+          fetchedAt: new Date().toISOString(),
+        });
+        setArticles(fetched);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to fetch articles");
     }
@@ -177,7 +201,7 @@ export function Reading({ record, onUpdate }: Props) {
   if (articles.length === 0) {
     return (
       <div className="max-w-2xl mx-auto py-10 text-center">
-        <p className="text-gray-500 mb-4">No articles loaded. Check your NYT API key in Settings.</p>
+        <p className="text-gray-500 mb-4">No articles loaded. Check your Settings.</p>
         <button
           onClick={loadArticles}
           className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"

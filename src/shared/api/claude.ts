@@ -382,6 +382,7 @@ export interface WritingReviewResult {
   styleNotes: { original: string; correction: string; explanation: string }[];
   suggestions: string[];
   overallComment: string;
+  correctedText?: string;
 }
 
 export async function reviewWriting(
@@ -396,7 +397,8 @@ You MUST respond with valid JSON only, no markdown fences, in this exact format:
   "grammarIssues": [{"original": "...", "correction": "...", "explanation": "..."}],
   "styleNotes": [{"original": "...", "correction": "...", "explanation": "..."}],
   "suggestions": ["..."],
-  "overallComment": "..."
+  "overallComment": "...",
+  "correctedText": "The full corrected and polished version of the student's essay, with all grammar and style issues fixed. Keep the student's ideas and structure, but improve the language to sound natural and fluent."
 }`;
 
   const text = await callWithSettings(

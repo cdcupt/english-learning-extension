@@ -4,7 +4,7 @@ This file provides guidance to Claude Code when working with this repository.
 
 ## Project Overview
 
-English Learning Tracker — a Chrome extension (MV3) for daily English practice with 5 tasks: Reading, Writing, Vocabulary, Speaking, and Listening.
+English Learning Tracker — a Chrome extension (MV3) for daily English practice with 4 tasks: Reading, Write & Speak, Vocabulary, and Listening.
 
 ## Build & Dev Commands
 
@@ -34,12 +34,13 @@ src/
 │   ├── main.tsx, App.tsx
 │   ├── components/                 # Navigation, TaskCard, CheckInButton
 │   ├── hooks/                      # useDailyTasks, useStorage
-│   └── pages/                      # Dashboard, Reading, ArticleReader, Writing, Vocabulary, Speaking, Listening, Settings, etc.
+│   └── pages/                      # Dashboard, Reading, ArticleReader, Writing (merged Write & Speak), Vocabulary, Listening, Settings, etc.
 ├── sidepanel/                      # Side panel mini-dashboard
 ├── shared/
 │   ├── types.ts                    # All TypeScript interfaces
 │   ├── storage.ts                  # Chrome storage abstraction
 │   ├── constants.ts                # Writing topics
+│   ├── crypto.ts                   # AES-256-GCM encrypt/decrypt for config sharing
 │   ├── api/nyt.ts                  # NYT article client
 │   ├── api/claude.ts               # AI client + TTS + ASR wrappers
 │   └── utils/                      # Date, scoring helpers
@@ -82,7 +83,7 @@ src/
 
 ## Practice Module Patterns
 
-All 5 practice modules follow a consistent pattern:
+All 4 practice modules follow a consistent pattern:
 - **List view** as default with "Today's Practices" history
 - **"Review" button** on completed items to recap results/feedback
 - **"Back to list"** navigation from any sub-view
@@ -90,15 +91,15 @@ All 5 practice modules follow a consistent pattern:
 - **Persistent storage** — progress survives navigation and page reload
 
 ### Module-specific notes:
-- **Reading:** 2 NYT articles by default; extra articles are AI-generated (marked with "AI Generated" badge)
+- **Reading:** Supports two modes via `readingSource` setting: `"nyt_mixed"` (NYT articles + optional AI extras) or `"ai_only"` (all AI-generated, no NYT key needed). Default 2 articles/day.
+- **Write & Speak:** Merged writing + speaking in one page (`Writing.tsx`). Flow: write → AI review with corrected article → read corrected article aloud → pronunciation evaluation. Completes both `writing` and `speaking` fields in DailyRecord. Speaking.tsx is unused but kept in codebase.
 - **Vocabulary:** 20 AI-generated IELTS words with 4-choice quiz; options are shuffled client-side after AI response
-- **Speaking:** Counts unique prompts only (retries don't inflate completion count); averages best score per prompt
 - **Listening:** Sessions persisted to `listening:{date}` storage key; audio URLs are not persisted (regenerated on replay)
-- **Writing:** History loaded from `writingIndex` + individual `writing:{id}` entries
 
 ## Important Notes
 
-- Speaking and Listening components are always mounted (use `visible` prop) to preserve recording/playback state during navigation.
+- Listening component is always mounted (uses `visible` prop) to preserve playback state during navigation. Speaking is now part of Writing.tsx.
+- Config sharing uses AES-256-GCM encryption (`shared/crypto.ts`); shared configs strip API keys, import preserves local keys.
 - ByteDance API calls must go through the service worker (CORS).
 - The `_bigtts` voice types require `seed-tts-2.0` resource ID; V1 `BV*_streaming` voices require `seed-tts-1.0`.
 - AI prompt responses often include markdown fences — always strip them before JSON.parse.

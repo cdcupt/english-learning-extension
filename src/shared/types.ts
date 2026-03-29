@@ -10,6 +10,8 @@ export type TTSVoice = "alloy" | "echo" | "fable" | "onyx" | "nova" | "shimmer";
 
 export type TTSProvider = "openai" | "bytedance";
 
+export type ReadingSource = "nyt_mixed" | "ai_only";
+
 export type BytedanceVoice =
   | "en_female_dacey_uranus_bigtts"
   | "BV001_streaming"
@@ -33,6 +35,7 @@ export interface Settings {
   dailySpeakingCount?: 1 | 2 | 3 | 4 | 5;
   bytedanceAsrCluster?: string;
   installedDate: string;
+  readingSource?: ReadingSource;
   paused: boolean;
 }
 
@@ -108,6 +111,7 @@ export interface WritingFeedback {
   styleNotes: FeedbackItem[];
   suggestions: string[];
   overallComment: string;
+  correctedText?: string;
 }
 
 export interface FeedbackItem {

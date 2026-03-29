@@ -4,9 +4,8 @@ import type { Page } from "@/shared/types";
 const PRIMARY_ITEMS: { page: Page; label: string; icon: string }[] = [
   { page: "dashboard", label: "Dashboard", icon: "📊" },
   { page: "reading", label: "Reading", icon: "📰" },
-  { page: "writing", label: "Writing", icon: "✍️" },
+  { page: "writing", label: "Write & Speak", icon: "✍️" },
   { page: "vocabulary", label: "Vocabulary", icon: "📚" },
-  { page: "speaking", label: "Speaking", icon: "🎙️" },
   { page: "listening", label: "Listening", icon: "🎧" },
 ];
 
