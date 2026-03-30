@@ -1,6 +1,6 @@
 {
   "name": "english-learning-extension",
-  "version": "1.0.0",
+  "version": "1.2.3",
   "description": "Daily English learning tasks: reading, writing, vocabulary, speaking, listening",
   "type": "module",
   "scripts": {
